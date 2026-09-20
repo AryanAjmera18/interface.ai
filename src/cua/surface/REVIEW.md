@@ -1758,7 +1758,7 @@ def test_approved_migration_cannot_pass_vacuously() -> None:
 uv run --locked pytest --update-goldens
 ============================= test session starts =============================
 platform win32 -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
-rootdir: C:\interface.ai
+rootdir: <repo>
 configfile: pyproject.toml
 testpaths: tests
 plugins: anyio-4.15.1, Faker-40.39.0, hypothesis-6.168.0, langsmith-0.12.6, asyncio-1.4.0, cov-7.1.0
@@ -1774,20 +1774,20 @@ tests\unit\domain\test_contracts.py .................................... [ 51%]
 tests\unit\domain\test_invariants.py ................................... [ 72%]
 ...........                                                              [ 79%]
 tests\unit\domain\test_relative_scope.py ........
-GOLDEN REWRITTEN: C:\interface.ai\tests\golden\capability.v2.json | 21446 -> 21446 bytes (delta +0)
+GOLDEN REWRITTEN: <repo>\tests\golden\capability.v2.json | 21446 -> 21446 bytes (delta +0)
 .
 tests\unit\domain\test_relative_scope.py 
-GOLDEN REWRITTEN: C:\interface.ai\tests\golden\capability.approved.v2.json | 21696 -> 21686 bytes (delta -10)
+GOLDEN REWRITTEN: <repo>\tests\golden\capability.approved.v2.json | 21696 -> 21686 bytes (delta -10)
 .
 tests\unit\domain\test_relative_scope.py .                               [ 85%]
 tests\unit\domain\test_schemas.py ...........
-GOLDEN REWRITTEN: C:\interface.ai\tests\golden\capability.v2.json | 21446 -> 21446 bytes (delta +0)
+GOLDEN REWRITTEN: <repo>\tests\golden\capability.v2.json | 21446 -> 21446 bytes (delta +0)
 .
 tests\unit\domain\test_schemas.py 
-GOLDEN REWRITTEN: C:\interface.ai\tests\golden\schema-digests.v2.json | 566 -> 566 bytes (delta +0)
-GOLDEN REWRITTEN: C:\interface.ai\docs\schema\capability.v2.json | 36514 -> 36516 bytes (delta +2)
-GOLDEN REWRITTEN: C:\interface.ai\docs\schema\action.v2.json | 11070 -> 11070 bytes (delta +0)
-GOLDEN REWRITTEN: C:\interface.ai\docs\schema\decision-result.v2.json | 12750 -> 12750 bytes (delta +0)
+GOLDEN REWRITTEN: <repo>\tests\golden\schema-digests.v2.json | 566 -> 566 bytes (delta +0)
+GOLDEN REWRITTEN: <repo>\docs\schema\capability.v2.json | 36514 -> 36516 bytes (delta +2)
+GOLDEN REWRITTEN: <repo>\docs\schema\action.v2.json | 11070 -> 11070 bytes (delta +0)
+GOLDEN REWRITTEN: <repo>\docs\schema\decision-result.v2.json | 12750 -> 12750 bytes (delta +0)
 .
 tests\unit\domain\test_schemas.py ..                                     [ 94%]
 tests\unit\test_scaffold.py .                                            [ 95%]
@@ -1868,7 +1868,7 @@ Success: no issues found in 33 source files
 uv run --locked pytest
 ============================= test session starts =============================
 platform win32 -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
-rootdir: C:\interface.ai
+rootdir: <repo>
 configfile: pyproject.toml
 testpaths: tests
 plugins: anyio-4.15.1, Faker-40.39.0, hypothesis-6.168.0, langsmith-0.12.6, asyncio-1.4.0, cov-7.1.0
@@ -3347,7 +3347,7 @@ Success: no issues found in 37 source files
 uv run --locked pytest
 ============================= test session starts =============================
 platform win32 -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
-rootdir: C:\interface.ai
+rootdir: <repo>
 configfile: pyproject.toml
 testpaths: tests
 plugins: anyio-4.15.1, Faker-40.39.0, hypothesis-6.168.0, langsmith-0.12.6, asyncio-1.4.0, cov-7.1.0

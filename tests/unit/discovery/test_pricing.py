@@ -33,9 +33,9 @@ def test_recorded_provider_usage_is_normalized() -> None:
 
 
 def test_missing_rates_emit_null_instead_of_false_zero() -> None:
-    config = load_pricing(Path("config/pricing.yaml"))
     usage = normalize_anthropic_usage(fixture("anthropic_usage.json"))
-    assert price_usage(usage, config.entries[0]).cost_usd is None
+    missing = PricingEntry(provider="anthropic", model_id="missing-rates")
+    assert price_usage(usage, missing).cost_usd is None
     assert price_usage(usage, None).cost_usd is None
 
 
@@ -51,3 +51,32 @@ def test_dated_source_allows_cost_computation() -> None:
         retrieved_on=date(2026, 9, 19),
     )
     assert price_usage(usage, entry).cost_usd == 0.00034
+
+
+def test_openai_cost_uses_cached_rate_without_double_charging_reasoning() -> None:
+    config = load_pricing(Path("config/pricing.yaml"))
+    entry = config.get("openai", "gpt-6-astra")
+    assert entry is not None
+    usage = normalize_openai_usage(fixture("openai_usage.json"))
+    priced = price_usage(usage, entry)
+    # 100 uncached * $10 + 50 cached * $1 + 40 output * $50. The 12 reasoning
+    # tokens are already included in output_tokens=40 and must not be added again.
+    assert priced.cost_usd == 0.00305
+
+
+def test_repository_pricing_entries_match_dated_standard_rates() -> None:
+    config = load_pricing(Path("config/pricing.yaml"))
+    astra = config.get("openai", "gpt-6-astra")
+    luna = config.get("openai", "gpt-5.6-luna")
+    assert astra is not None and luna is not None
+    assert (
+        astra.input_per_mtok,
+        astra.cached_input_per_mtok,
+        astra.output_per_mtok,
+    ) == (Decimal("10.0"), Decimal("1.0"), Decimal("50.0"))
+    assert (
+        luna.input_per_mtok,
+        luna.cached_input_per_mtok,
+        luna.output_per_mtok,
+    ) == (Decimal("0.2"), Decimal("0.02"), Decimal("1.2"))
+    assert astra.retrieved_on == luna.retrieved_on == date(2026, 9, 20)

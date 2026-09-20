@@ -1,6 +1,8 @@
 """Summarize verified run evidence at completion; forbid higher-layer imports."""
 
 from datetime import date
+from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, JsonValue
 
@@ -11,7 +13,12 @@ from cua.domain.provenance import LineageRef
 from cua.observability._io import write_bytes
 from cua.observability.context import RunContext, current_run
 from cua.observability.evidence import EvidenceIndex, EvidenceStore
-from cua.observability.journal import ChainReport, RunJournal
+from cua.observability.journal import (
+    ChainReport,
+    JournalRecord,
+    RunJournal,
+    verify_chain_directory,
+)
 from cua.observability.redaction import (
     RedactionPolicy,
     TaggedValue,
@@ -52,6 +59,7 @@ class Manifest(DomainModel):
     pricing: tuple[PricingEvidence, ...]
     policy_decisions: PolicyCounts
     drift_observations: tuple[JsonValue, ...]
+    cost_basis: Literal["run_time", "post_run"] = "run_time"
 
 
 def write_manifest(
@@ -77,8 +85,55 @@ def write_manifest(
         raise RuntimeError("End all spans before writing the run manifest")
     chain = journal.verify_chain()
     records = journal.records() if chain.intact else ()
-    if chain.intact and (not records or records[-1].type != "RunEnded"):
+    terminal = next(
+        (index for index, record in enumerate(records) if record.type == "RunEnded"), None
+    )
+    if chain.intact and terminal is None:
         raise RuntimeError("Record RunEnded before writing the manifest")
+    if terminal is not None and any(
+        record.type != "CostAmended" for record in records[terminal + 1 :]
+    ):
+        raise RuntimeError("Only CostAmended events may follow RunEnded")
+    usage, counts, drift, amended_pricing, cost_basis = _summarize(records, pricing)
+    allowed, denied = counts.allowed, counts.denied
+    pricing = amended_pricing
+    manifest = Manifest(
+        context=run,
+        inputs=checked_json(inputs),
+        result_summary=checked_json(result_summary),
+        capability_lineage=lineage,
+        journal_head_hash=journal.head.hash,
+        chain=chain,
+        evidence_index=evidence.index,
+        evidence_verified=all(evidence.verify(ref) for ref in evidence.index.entries),
+        span_file=tracing.path.name,
+        span_export_failures=tracing.processor.failures,
+        duration_ms=(clock.now() - run.started_at).total_seconds() * 1000,
+        model_usage=usage,
+        pricing=pricing,
+        policy_decisions=PolicyCounts(allowed=allowed, denied=denied),
+        drift_observations=tuple(drift),
+        cost_basis=cost_basis,
+    )
+    # Field-specific masking happened at ingress. Reapplying a schema rule to its marker
+    # would destroy cross-step hash equality; scan the assembled document with patterns only.
+    with redaction_policy(RedactionPolicy()):
+        safe = redact(canonical_json(manifest.model_dump(mode="json")).encode())
+    write_bytes(evidence.root / "manifest.json", safe)
+    return manifest
+
+
+def _summarize(
+    records: tuple[JournalRecord, ...],
+    pricing: tuple[PricingEvidence, ...],
+) -> tuple[
+    Usage,
+    PolicyCounts,
+    tuple[JsonValue, ...],
+    tuple[PricingEvidence, ...],
+    Literal["run_time", "post_run"],
+]:
+    """Derive mutable accounting fields from journal facts, including visible amendments."""
     usage = Usage(
         input_tokens=0,
         cached_input_tokens=0,
@@ -88,6 +143,7 @@ def write_manifest(
     )
     allowed, denied = 0, 0
     drift: list[JsonValue] = []
+    cost_basis: Literal["run_time", "post_run"] = "run_time"
     for record in records:
         payload = record.payload
         if not isinstance(payload, dict):
@@ -112,26 +168,56 @@ def write_manifest(
             denied += payload.get("allowed") is False
         elif record.type == "DriftObserved":
             drift.append(payload)
-    manifest = Manifest(
-        context=run,
-        inputs=checked_json(inputs),
-        result_summary=checked_json(result_summary),
-        capability_lineage=lineage,
-        journal_head_hash=journal.head.hash,
-        chain=chain,
-        evidence_index=evidence.index,
-        evidence_verified=all(evidence.verify(ref) for ref in evidence.index.entries),
-        span_file=tracing.path.name,
-        span_export_failures=tracing.processor.failures,
-        duration_ms=(clock.now() - run.started_at).total_seconds() * 1000,
-        model_usage=usage,
-        pricing=pricing,
-        policy_decisions=PolicyCounts(allowed=allowed, denied=denied),
-        drift_observations=tuple(drift),
+        elif record.type == "CostAmended":
+            amended = Usage.model_validate(payload.get("usage"))
+            if (
+                amended.input_tokens,
+                amended.cached_input_tokens,
+                amended.output_tokens,
+                amended.reasoning_tokens,
+            ) != (
+                usage.input_tokens,
+                usage.cached_input_tokens,
+                usage.output_tokens,
+                usage.reasoning_tokens,
+            ):
+                raise ValueError("CostAmended usage does not match journal ModelDecided totals")
+            usage = amended
+            pricing = (
+                PricingEvidence(
+                    provider=str(payload["provider"]),
+                    model_id=str(payload["model_id"]),
+                    source_url=str(payload["source_url"]),
+                    retrieved_on=date.fromisoformat(str(payload["retrieved_on"])),
+                ),
+            )
+            cost_basis = "post_run"
+    return usage, PolicyCounts(allowed=allowed, denied=denied), tuple(drift), pricing, cost_basis
+
+
+def regenerate_manifest_from_journal(bundle: Path) -> Manifest:
+    """Rebuild journal-derived manifest fields while preserving immutable runtime metadata."""
+    current = Manifest.model_validate_json((bundle / "manifest.json").read_bytes())
+    chain = verify_chain_directory(bundle, current.context.run_id)
+    if not chain.intact:
+        raise ValueError(f"Cannot regenerate manifest from broken chain: {chain.reason}")
+    records = tuple(
+        JournalRecord.model_validate_json(line)
+        for line in (bundle / "journal.ndjson").read_bytes().splitlines()
     )
-    # Field-specific masking happened at ingress. Reapplying a schema rule to its marker
-    # would destroy cross-step hash equality; scan the assembled document with patterns only.
+    usage, counts, drift, pricing, cost_basis = _summarize(records, current.pricing)
+    amended = current.model_copy(
+        update={
+            "journal_head_hash": records[-1].hash if records else None,
+            "chain": chain,
+            "model_usage": usage,
+            "pricing": pricing,
+            "policy_decisions": counts,
+            "drift_observations": drift,
+            "cost_basis": cost_basis,
+        }
+    )
     with redaction_policy(RedactionPolicy()):
-        safe = redact(canonical_json(manifest.model_dump(mode="json")).encode())
-    write_bytes(evidence.root / "manifest.json", safe)
-    return manifest
+        safe = redact(canonical_json(amended.model_dump(mode="json")).encode())
+    write_bytes(bundle / "manifest.json", safe)
+    return amended

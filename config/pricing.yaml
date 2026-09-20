@@ -1,25 +1,18 @@
 entries:
-  - provider: anthropic
-    model_id: replace-with-configured-anthropic-model-id
-    input_per_mtok: null
-    output_per_mtok: null
-    cached_input_per_mtok: null
-    currency: USD
-    source_url: null
-    retrieved_on: null
   - provider: openai
     model_id: gpt-6-astra
-    input_per_mtok: null
-    output_per_mtok: null
-    cached_input_per_mtok: null
+    input_per_mtok: 10.00
+    output_per_mtok: 50.00
+    cached_input_per_mtok: 1.00
     currency: USD
-    source_url: null
-    retrieved_on: null
+    source_url: https://developers.openai.com/api/docs/pricing
+    retrieved_on: 2026-09-20
+
   - provider: openai
     model_id: gpt-5.6-luna
-    input_per_mtok: null
-    output_per_mtok: null
-    cached_input_per_mtok: null
+    input_per_mtok: 0.20
+    output_per_mtok: 1.20
+    cached_input_per_mtok: 0.02
     currency: USD
-    source_url: null
-    retrieved_on: null
+    source_url: https://developers.openai.com/api/docs/pricing
+    retrieved_on: 2026-09-20

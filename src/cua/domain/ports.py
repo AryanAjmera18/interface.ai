@@ -1,15 +1,16 @@
 """Declare effect boundaries only; forbid implementations, I/O, and other cua packages."""
 
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Literal, Protocol
 
-from pydantic import AwareDatetime, Field, JsonValue
+from pydantic import AwareDatetime, Field, HttpUrl, JsonValue
 
 from cua.domain.actions import Action
 from cua.domain.capability import Capability, ExtractorSpec
 from cua.domain.common import ULID, Digest, DomainModel, EvidenceRef, ValueRef
 from cua.domain.locators import LocatorCandidate, LocatorLadder
-from cua.domain.models import DecisionRequest, DecisionResult
+from cua.domain.models import DecisionRequest, DecisionResult, Usage
 from cua.domain.observation import Observation
 from cua.domain.predicates import AxTarget, PredicateResult
 from cua.domain.steps import StepTiming
@@ -264,6 +265,22 @@ class CapabilityCompiled(DomainModel):
     content_digest: Digest
 
 
+class CostAmended(DomainModel):
+    """Record a post-run price without rewriting the usage events that existed at execution."""
+
+    type: Literal["CostAmended"] = "CostAmended"
+    provider: str
+    model_id: str
+    input_per_mtok: Decimal = Field(ge=0)
+    cached_input_per_mtok: Decimal | None = Field(default=None, ge=0)
+    output_per_mtok: Decimal = Field(ge=0)
+    currency: str
+    source_url: HttpUrl
+    retrieved_on: date
+    usage: Usage
+    reason: Literal["pricing entry filled after the run"]
+
+
 class RunEnded(DomainModel):
     type: Literal["RunEnded"] = "RunEnded"
     result: Literal["success", "business", "hard_failure", "cancelled"]
@@ -286,6 +303,7 @@ JournalEvent = Annotated[
     | HumanAction
     | ControlReturned
     | CapabilityCompiled
+    | CostAmended
     | RunEnded,
     Field(discriminator="type"),
 ]

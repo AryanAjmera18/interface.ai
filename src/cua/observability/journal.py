@@ -41,14 +41,16 @@ class BrokenChainError(ValueError):
 
 
 def verify_chain(root: Path, run_id: str) -> ChainReport:
-    """Compare the chain with a separately persisted local head to detect tail truncation.
+    """Verify a run stored under its canonical run-id directory."""
+    return verify_chain_directory(root / run_id, run_id)
 
-    This is tamper-evidence against partial changes, not authenticity against the writer.
-    Rewriting both journal and head can defeat it; external signed/WORM anchoring is required
-    for an adversarial writer. A crash between append and head update fails closed.
+
+def verify_chain_directory(directory: Path, run_id: str) -> ChainReport:
+    """Compare a bundle chain with its separately persisted head anchor.
+
+    The direct-directory form supports exported bundles whose friendly directory name differs from
+    the run ULID. This remains tamper-evidence, not authenticity against an adversarial writer.
     """
-    head = JournalHead(run_id=run_id, seq=0, hash=None)
-    directory = root / head.run_id
     path, anchor = directory / "journal.ndjson", directory / "journal.head.json"
     seq, previous = 0, None
     try:

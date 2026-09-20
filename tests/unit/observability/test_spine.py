@@ -14,7 +14,8 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from pydantic import JsonValue
 
-from cua.domain.ports import RunEnded, RunStarted
+from cua.domain.models import Usage
+from cua.domain.ports import CostAmended, RunEnded, RunStarted
 from cua.observability._io import WriterBusyError
 from cua.observability.context import current_run, new_run, run_scope
 from cua.observability.evidence import EvidenceStore
@@ -215,5 +216,50 @@ def test_manifest_is_complete_and_golden(
         ).encode()
         golden_file(Path("tests/golden/manifest.json"), expected)
         assert json.loads((tmp_path / context.run_id / "manifest.json").read_text())
+        evidence.close()
+        journal.close()
+
+
+def test_cost_amendment_follows_terminal_event_and_drives_manifest(tmp_path: Path) -> None:
+    context = new_run("replay", clock=FixedClock(), ids=SequenceIds())
+    with run_scope(context):
+        ids = SequenceIds()
+        journal = RunJournal(tmp_path, context.run_id, clock=FixedClock())
+        evidence = EvidenceStore(tmp_path, context.run_id, clock=FixedClock(), ids=ids)
+        tracing = Tracing(tmp_path, clock=FixedClock(), ids=ids, remote=False)
+        journal.record(RunStarted(kind="replay"))
+        tracing.close()
+        journal.record(RunEnded(result="success", summary="completed"))
+        journal.record(
+            CostAmended(
+                provider="openai",
+                model_id="gpt-6-astra",
+                input_per_mtok="10",
+                cached_input_per_mtok="1",
+                output_per_mtok="50",
+                currency="USD",
+                source_url="https://developers.openai.com/api/docs/pricing",
+                retrieved_on="2026-09-20",
+                usage=Usage(
+                    input_tokens=0,
+                    cached_input_tokens=0,
+                    output_tokens=0,
+                    reasoning_tokens=0,
+                    cost_usd=0,
+                ),
+                reason="pricing entry filled after the run",
+            )
+        )
+        manifest = write_manifest(
+            journal=journal,
+            evidence=evidence,
+            tracing=tracing,
+            clock=FixedClock(),
+            inputs=redact({}),
+            result_summary=redact({"status": "success"}),
+        )
+        assert manifest.cost_basis == "post_run"
+        assert manifest.model_usage.cost_usd == 0
+        assert manifest.pricing[0].model_id == "gpt-6-astra"
         evidence.close()
         journal.close()

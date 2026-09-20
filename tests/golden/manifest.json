@@ -14,6 +14,7 @@
     "tenant_id": null,
     "trace_id": "8954022ad2f9b2622b44e6b6d4ca9080"
   },
+  "cost_basis": "run_time",
   "drift_observations": [],
   "duration_ms": 0.0,
   "evidence_index": {

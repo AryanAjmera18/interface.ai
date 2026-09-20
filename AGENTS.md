@@ -11,3 +11,4 @@
 - Conventional commits. Small, reviewable commits.
 - When a design decision is non-obvious, record the reasoning in a docstring at the decision site, not in a separate doc nobody reads.
 - Never edit goldens by hand. Regenerate only through `pytest --update-goldens` (or `make update-goldens`); never regenerate in reaction to a red test without stating in the commit message which intentional behavior or schema change caused the drift. Frozen historical schemas and their manifests must not be rewritten by this flag.
+- Prompt templates are append-only. Any content change creates a new versioned file and prompt_template_id; never edit a template referenced by a journal in place because its hash is provenance.

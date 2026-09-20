@@ -17,11 +17,11 @@ dist/
 *.egg-info/
 /evidence/*
 !/evidence/demo/
-# Preserve failure narratives, never their pre-mask AX blobs.
+# Preserve failure evidence, but never publish pre-mask AX blobs or live lock files.
 !/evidence/discovery-00[1-9]/
-/evidence/discovery-00[1-9]/*
-!/evidence/discovery-00[1-9]/journal.ndjson
-!/evidence/discovery-00[1-9]/manifest.json
+!/evidence/discovery-00[1-9]/**
+/evidence/discovery-00[1-9]/blobs/
+/evidence/discovery-00[1-9]/*.lock
 # Attempt 010 passed the identity, prompt, and key-material privacy scans.
 !/evidence/discovery-010/
 /evidence/discovery-010/browser-profile/
@@ -31,3 +31,5 @@ test-results/
 blob-report/
 .playwright/
 ms-playwright/
+
+/evidence/discovery-00[1-9]/browser-profile/

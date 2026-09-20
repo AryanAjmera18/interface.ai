@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail a public-repository scan on unreviewed credential-like content."""
+"""Fail a public-repository scan on unreviewed credential or identity content."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import subprocess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Literal
 
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,6 +20,7 @@ class AllowEntry(BaseModel):
 
     path: str
     matched_text_b64: str
+    scope: Literal["all", "history_only"] = "all"
     reason: str = Field(min_length=1)
 
     @property
@@ -50,28 +52,31 @@ def _git(*args: str) -> str:
     )
 
 
-def _patterns() -> tuple[tuple[str, str, bool], ...]:
+def _patterns() -> tuple[tuple[str, str, bool, Literal["line", "match"]], ...]:
     key = dotenv_values(".env").get("OPENAI_API_KEY")
-    values: list[tuple[str, str, bool]] = []
+    values: list[tuple[str, str, bool, Literal["line", "match"]]] = []
     if key:
-        values.append(("OPENAI_API_KEY value", key, True))
+        values.append(("OPENAI_API_KEY value", key, True, "line"))
     values.extend(
         (
-            ("key prefix", "s" + "k-", True),
-            ("lowercase API key label", "api" + "_key", False),
-            ("authorization header", "Authorization" + ":", False),
-            ("bearer credential", "Bearer" + " ", False),
+            ("key prefix", "s" + "k-", True, "line"),
+            ("lowercase API key label", "api" + "_key", False, "line"),
+            ("authorization header", "Authorization" + ":", False, "line"),
+            ("bearer credential", "Bearer" + " ", False, "line"),
+            ("member name", "Randall" + " Cook", False, "match"),
+            ("address", "9062 Gonzalez" + " Extensions", False, "match"),
+            ("address", "Port Maryport" + ", UT 24002", False, "match"),
         )
     )
     return tuple(values)
 
 
 def _matches(path: str, text: str, scope: str) -> Iterable[Finding]:
-    for label, needle, forbidden in _patterns():
+    for label, needle, forbidden, granularity in _patterns():
         if needle in text:
             yield Finding(
                 path=path,
-                text=text.strip(),
+                text=needle if granularity == "match" else text.strip(),
                 pattern=("forbidden:" if forbidden else "reviewable:") + label,
                 scopes=frozenset({scope}),
             )
@@ -131,6 +136,16 @@ def _merge(findings: Iterable[Finding]) -> tuple[Finding, ...]:
     )
 
 
+def _entry_allows(finding: Finding, entry: AllowEntry | None) -> bool:
+    if (
+        entry is None
+        or finding.pattern.startswith("forbidden:")
+        or (entry.path, entry.matched_text) != (finding.path, finding.text)
+    ):
+        return False
+    return entry.scope == "all" or finding.scopes == frozenset({"history"})
+
+
 def _display(finding: Finding) -> str:
     if finding.pattern.startswith("forbidden:"):
         digest = hashlib.sha256(finding.text.encode()).hexdigest()[:12]
@@ -150,7 +165,9 @@ def main() -> int:
     allowed = {(entry.path, entry.matched_text): entry for entry in allow.entries}
     for entry in allow.entries:
         if any(
-            needle in entry.matched_text for _label, needle, forbidden in _patterns() if forbidden
+            needle in entry.matched_text
+            for _label, needle, forbidden, _granularity in _patterns()
+            if forbidden
         ):
             _emit(f"FAIL invalid allowlist entry for {entry.path}: forbidden pattern")
             return 1
@@ -160,7 +177,8 @@ def main() -> int:
     failures: list[Finding] = []
     for finding in findings:
         entry = allowed.get((finding.path, finding.text))
-        if entry is not None and not finding.pattern.startswith("forbidden:"):
+        if _entry_allows(finding, entry):
+            assert entry is not None
             allowlisted.append((finding, entry))
         else:
             failures.append(finding)
@@ -177,7 +195,11 @@ def main() -> int:
         _emit(f"FAIL stale allowlist path={path} text={text!r}")
 
     failure_count = len(failures) + len(stale)
-    _emit(f"SUMMARY allowlisted={len(allowlisted)} failures={failure_count}")
+    tracked_failures = sum("tracked" in finding.scopes for finding in failures)
+    _emit(
+        f"SUMMARY allowlisted={len(allowlisted)} failures={failure_count} "
+        f"tracked_failures={tracked_failures}"
+    )
     return 1 if failure_count else 0
 
 

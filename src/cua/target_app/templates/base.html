@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ tenant.page_title }} — {% block title %}Bank console{% endblock %}</title>
+  <style>
+    body { background:#e5e8eb; color:#17212b; font:16px Arial,sans-serif; margin:12px; }
+    table { border-collapse:collapse; width:100%; background:#f8f8f5; }
+    td, th { padding:9px; border:1px solid #b7bdc4; text-align:left; }
+    caption { text-align:left; font-weight:bold; padding:8px; }
+    input, select { font:inherit; padding:5px; border:1px solid #596777; }
+    .{{ tenant.css_class }} { display:inline-block; padding:7px 12px; margin:4px;
+      background:#244565; color:white; border:2px outset #8499ac; cursor:pointer; }
+    :focus-visible { outline:3px solid #c55c00; outline-offset:3px; }
+    iframe { width:100%; min-height:650px; border:1px solid #667788; }
+    [role=alert] { color:#8c1717; font-weight:bold; }
+    [role=dialog] { border:4px double #244565; padding:24px; margin:30px; background:white; }
+  </style>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

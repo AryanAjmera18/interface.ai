@@ -1,0 +1,711 @@
+{
+  "capability_id": "00000000000000000000000002",
+  "description": "Hand-authored synthetic demo; assumes an authenticated session.",
+  "inputs": [
+    {
+      "default": null,
+      "description": "Synthetic member identifier.",
+      "example": {
+        "kind": "string",
+        "value": "10001"
+      },
+      "json_type": "string",
+      "name": "member_id",
+      "required": true,
+      "sensitivity": "internal",
+      "validation": {
+        "kind": "regex",
+        "pattern": "^\\d{5}$"
+      }
+    }
+  ],
+  "name": "look_up_member_savings_balance",
+  "outcomes": [
+    {
+      "caller_message": "No matching member exists.",
+      "classification": "business",
+      "code": "member_not_found",
+      "detect": {
+        "frame_path": null,
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "No matching member was found. This is a business outcome."
+        },
+        "role": "status"
+      },
+      "recovery": null
+    },
+    {
+      "caller_message": "Session expired; reauthentication is required.",
+      "classification": "recoverable",
+      "code": "session_expired",
+      "detect": {
+        "frame_path": null,
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "Session expired"
+        },
+        "role": "status"
+      },
+      "recovery": {
+        "kind": "reauthenticate",
+        "max_attempts": 1
+      }
+    },
+    {
+      "caller_message": "The banking console could not complete the request.",
+      "classification": "hard",
+      "code": "app_error",
+      "detect": {
+        "frame_path": null,
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "System error"
+        },
+        "role": "heading"
+      },
+      "recovery": null
+    }
+  ],
+  "outputs": [
+    {
+      "description": "Formatted synthetic Savings balance.",
+      "extractor": {
+        "attribute": "name",
+        "regex": null,
+        "target": {
+          "frame_path": null,
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "regex",
+            "value": "^\\$[0-9,.]+$"
+          },
+          "node_path": null,
+          "nth": null,
+          "role": "cell",
+          "within": {
+            "frame_path": null,
+            "name_matcher": {
+              "alternatives": [],
+              "mode": "regex",
+              "value": "\\bSavings\\b"
+            },
+            "node_path": null,
+            "nth": null,
+            "role": "row",
+            "within": null
+          }
+        }
+      },
+      "json_type": "string",
+      "name": "savings_balance",
+      "nullable": false,
+      "produced_by_step_id": "read-savings",
+      "sensitivity": "internal"
+    }
+  ],
+  "provenance": {
+    "approval": {
+      "actor": "synthetic-reviewer",
+      "at": "2026-01-15T00:00:00Z",
+      "reason": "Synthetic approval fixture; not deployment authority.",
+      "reviewed_digest": "f6f23d91aa0eca65b2bd7c71a94a8d62dabdb33bc30415d193836b2f17a9920b"
+    },
+    "compiler_version": "1.0.0",
+    "derived_from_run_id": "00000000000000000000000001",
+    "lineage": [],
+    "models_used": [
+      {
+        "api_flavor": "offline",
+        "kind": "model",
+        "model_id": "deterministic-v1",
+        "provider": "fake",
+        "reasoning_effort": null,
+        "structured_output_mode": "json_schema"
+      }
+    ],
+    "parent_capability_id": null,
+    "recorded_at": "2026-01-15T00:00:00Z",
+    "recorder_version": "1.0.0",
+    "tool_schema_hash": "805cecdc958c764453297810c689dd992fc67ec92f568c9162ec20e853e94696"
+  },
+  "schema_version": 2,
+  "status": "approved",
+  "steps": [
+    {
+      "action": {
+        "kind": "navigate",
+        "url": "http://127.0.0.1:8099/t/alpha/shell"
+      },
+      "checkpoint": null,
+      "intent": "Synthetic demo: navigate.",
+      "on_outcome": [
+        {
+          "code": "app_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        }
+      ],
+      "ordinal": 1,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-01-15T00:00:00Z",
+        "decided_by": {
+          "actor": "synthetic-fixture-author",
+          "kind": "human"
+        },
+        "decision_id": null,
+        "discovery_run_id": "00000000000000000000000001",
+        "edits": [
+          {
+            "actor": "synthetic-fixture-author",
+            "after_hash": "5c3374f812f8f9f8bafd73f7f850a76a16b736e52390d80e4aa7a7436b93e3e1",
+            "at": "2026-01-15T00:00:00Z",
+            "before_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "field_path": "/steps/0",
+            "reason": "Hand-authored synthetic test fixture, not verified run evidence."
+          }
+        ],
+        "observation_hash": "6cd00c100e724bd0fca81fdc8b169d38fbe5ed49403d2d0b1be381d876a39aa0",
+        "observation_id": "00000000000000000000000001",
+        "prompt_hash": "ebb24e6420c6df769702a68173dbe69d464ec8516f343dd4fc3998324496f7c5",
+        "prompt_template_id": "member-entry.v1",
+        "rationale_digest": "7dbd08c7920f1d8706f24e8b000a217c4e9063799fcd985ec9741ed12e8e8e22",
+        "tool_call_id": "fake-call-1"
+      },
+      "risk": "safe",
+      "step_id": "navigate",
+      "target": null,
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 2000
+      }
+    },
+    {
+      "action": {
+        "kind": "type_text",
+        "value_ref": {
+          "kind": "param_ref",
+          "name": "member_id"
+        }
+      },
+      "checkpoint": null,
+      "intent": "Synthetic demo: enter member.",
+      "on_outcome": [
+        {
+          "code": "app_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        }
+      ],
+      "ordinal": 2,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-01-15T00:00:00Z",
+        "decided_by": {
+          "actor": "synthetic-fixture-author",
+          "kind": "human"
+        },
+        "decision_id": null,
+        "discovery_run_id": "00000000000000000000000001",
+        "edits": [
+          {
+            "actor": "synthetic-fixture-author",
+            "after_hash": "bb7e012914eca0abb0d04b2707c0cb369dbee39ac6c2b96b82f253e1d89aef0b",
+            "at": "2026-01-15T00:00:00Z",
+            "before_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "field_path": "/steps/1",
+            "reason": "Hand-authored synthetic test fixture, not verified run evidence."
+          }
+        ],
+        "observation_hash": "6cd00c100e724bd0fca81fdc8b169d38fbe5ed49403d2d0b1be381d876a39aa0",
+        "observation_id": "00000000000000000000000001",
+        "prompt_hash": "ebb24e6420c6df769702a68173dbe69d464ec8516f343dd4fc3998324496f7c5",
+        "prompt_template_id": "member-entry.v1",
+        "rationale_digest": "7dbd08c7920f1d8706f24e8b000a217c4e9063799fcd985ec9741ed12e8e8e22",
+        "tool_call_id": "fake-call-1"
+      },
+      "risk": "reversible",
+      "step_id": "enter-member",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "evidence_id": "00000000000000000000000001",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-01-15T00:00:00Z",
+            "rationale": "Unique named textbox in the recorded member workspace.",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Member ID"
+              },
+              "role": "textbox"
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 2000
+      }
+    },
+    {
+      "action": {
+        "kind": "click"
+      },
+      "checkpoint": null,
+      "intent": "Synthetic demo: submit search.",
+      "on_outcome": [
+        {
+          "code": "app_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        }
+      ],
+      "ordinal": 3,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-01-15T00:00:00Z",
+        "decided_by": {
+          "actor": "synthetic-fixture-author",
+          "kind": "human"
+        },
+        "decision_id": null,
+        "discovery_run_id": "00000000000000000000000001",
+        "edits": [
+          {
+            "actor": "synthetic-fixture-author",
+            "after_hash": "47ca4466ddc2de4d4a5a4798bb2d404b41e76b8e5c11d7e3ad98f90f50abdb07",
+            "at": "2026-01-15T00:00:00Z",
+            "before_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "field_path": "/steps/2",
+            "reason": "Hand-authored synthetic test fixture, not verified run evidence."
+          }
+        ],
+        "observation_hash": "6cd00c100e724bd0fca81fdc8b169d38fbe5ed49403d2d0b1be381d876a39aa0",
+        "observation_id": "00000000000000000000000001",
+        "prompt_hash": "ebb24e6420c6df769702a68173dbe69d464ec8516f343dd4fc3998324496f7c5",
+        "prompt_template_id": "member-entry.v1",
+        "rationale_digest": "7dbd08c7920f1d8706f24e8b000a217c4e9063799fcd985ec9741ed12e8e8e22",
+        "tool_call_id": "fake-call-1"
+      },
+      "risk": "safe",
+      "step_id": "submit-search",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "evidence_id": "00000000000000000000000001",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-01-15T00:00:00Z",
+            "rationale": "Synthetic hand-authored fixture; verify against live evidence later.",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Search members"
+              },
+              "role": "button"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "evidence_id": "00000000000000000000000001",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-01-15T00:00:00Z",
+            "rationale": "Synthetic hand-authored fixture; verify against live evidence later.",
+            "source": "ax_tree",
+            "strategy": "visible_text",
+            "uniqueness_at_record": 1,
+            "value": {
+              "matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Search members"
+              }
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "evidence_id": "00000000000000000000000001",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-01-15T00:00:00Z",
+            "rationale": "Synthetic hand-authored fixture; verify against live evidence later.",
+            "source": "ax_tree",
+            "strategy": "coordinates",
+            "uniqueness_at_record": 1,
+            "value": {
+              "x": 160.0,
+              "y": 80.0
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 2000
+      }
+    },
+    {
+      "action": {
+        "kind": "click"
+      },
+      "checkpoint": {
+        "frame_path": null,
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "Member detail"
+        },
+        "role": "heading"
+      },
+      "intent": "Synthetic demo: member detail.",
+      "on_outcome": [
+        {
+          "code": "app_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        }
+      ],
+      "ordinal": 4,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-01-15T00:00:00Z",
+        "decided_by": {
+          "actor": "synthetic-fixture-author",
+          "kind": "human"
+        },
+        "decision_id": null,
+        "discovery_run_id": "00000000000000000000000001",
+        "edits": [
+          {
+            "actor": "synthetic-fixture-author",
+            "after_hash": "51afc7ef4d1d9dd4e1cf0ea2496280e80cbcf313ba83b76ddc2300fbc8b9fc28",
+            "at": "2026-01-15T00:00:00Z",
+            "before_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "field_path": "/steps/3",
+            "reason": "Hand-authored synthetic test fixture, not verified run evidence."
+          }
+        ],
+        "observation_hash": "6cd00c100e724bd0fca81fdc8b169d38fbe5ed49403d2d0b1be381d876a39aa0",
+        "observation_id": "00000000000000000000000001",
+        "prompt_hash": "ebb24e6420c6df769702a68173dbe69d464ec8516f343dd4fc3998324496f7c5",
+        "prompt_template_id": "member-entry.v1",
+        "rationale_digest": "7dbd08c7920f1d8706f24e8b000a217c4e9063799fcd985ec9741ed12e8e8e22",
+        "tool_call_id": "fake-call-1"
+      },
+      "risk": "safe",
+      "step_id": "member-detail",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "evidence_id": "00000000000000000000000001",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-01-15T00:00:00Z",
+            "rationale": "Synthetic hand-authored fixture; verify against live evidence later.",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "View member 10001"
+              },
+              "role": "link"
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 2000
+      }
+    },
+    {
+      "action": {
+        "attribute": "name",
+        "kind": "read_value",
+        "output_name": "savings_balance"
+      },
+      "checkpoint": null,
+      "intent": "Synthetic demo: read savings.",
+      "on_outcome": [
+        {
+          "code": "app_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        }
+      ],
+      "ordinal": 5,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-01-15T00:00:00Z",
+        "decided_by": {
+          "actor": "synthetic-fixture-author",
+          "kind": "human"
+        },
+        "decision_id": null,
+        "discovery_run_id": "00000000000000000000000001",
+        "edits": [
+          {
+            "actor": "synthetic-fixture-author",
+            "after_hash": "d58d2af6da579dfc901acbc28a7b165291ddda30f273660447033202a13afef7",
+            "at": "2026-01-15T00:00:00Z",
+            "before_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+            "field_path": "/steps/4",
+            "reason": "Hand-authored synthetic test fixture, not verified run evidence."
+          }
+        ],
+        "observation_hash": "6cd00c100e724bd0fca81fdc8b169d38fbe5ed49403d2d0b1be381d876a39aa0",
+        "observation_id": "00000000000000000000000001",
+        "prompt_hash": "ebb24e6420c6df769702a68173dbe69d464ec8516f343dd4fc3998324496f7c5",
+        "prompt_template_id": "member-entry.v1",
+        "rationale_digest": "7dbd08c7920f1d8706f24e8b000a217c4e9063799fcd985ec9741ed12e8e8e22",
+        "tool_call_id": "fake-call-1"
+      },
+      "risk": "safe",
+      "step_id": "read-savings",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "evidence_id": "00000000000000000000000001",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-01-15T00:00:00Z",
+            "rationale": "Synthetic hand-authored fixture; verify against live evidence later.",
+            "source": "ax_tree",
+            "strategy": "ax_role_name_scoped",
+            "uniqueness_at_record": 1,
+            "value": {
+              "ancestor": {
+                "frame_path": null,
+                "name_matcher": {
+                  "alternatives": [],
+                  "mode": "regex",
+                  "value": "\\bSavings\\b"
+                },
+                "node_path": null,
+                "nth": null,
+                "role": "row",
+                "within": null
+              },
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "regex",
+                "value": "^\\$[0-9,.]+$"
+              },
+              "role": "cell"
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 2000
+      }
+    }
+  ],
+  "target": {
+    "allowlist_ref": "local-demo.v1",
+    "app_id": "cua-synthetic-bank",
+    "entry_point": "http://127.0.0.1:8099/t/alpha/",
+    "recorded_fingerprint": {
+      "app_id": "cua-synthetic-bank",
+      "app_version": "0.1.0",
+      "config_hash": "adc957f5621d18bb12b0d08c8865d8d75085ee1eb32a74a9c77e65415e508160",
+      "observed_at": "2026-01-15T00:00:00Z",
+      "tenant_id": "alpha",
+      "ui_revision": "legacy-frames-1"
+    },
+    "surface_kind": "web",
+    "tenant_id": "alpha"
+  },
+  "version": "1.0.0"
+}

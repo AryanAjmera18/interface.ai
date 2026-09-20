@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Console{% endblock %}
+{% block body %}
+<h1>{{ tenant.branding }} — {{ tenant.page_title }}</h1>
+<p>As of {{ page.as_of }} · Synthetic records only</p>
+<table role="presentation"><tr>
+  <td style="width:22%;vertical-align:top"><iframe name="navigation" title="Navigation" src="{{ base }}/nav"></iframe></td>
+  <td><iframe name="content" title="Content" src="{{ base }}/content"></iframe></td>
+</tr></table>
+{% endblock %}

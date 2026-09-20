@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "macros.html" import submit %}
+{% block title %}Sign in{% endblock %}
+{% block body %}
+<h1>{{ tenant.branding }} — Sign in</h1>
+{% if page.notice %}<p role="alert">{{ page.notice }}</p>{% endif %}
+<p>Synthetic training console. Authentication is deliberately fake; enter any values.</p>
+<form name="f1" method="post" action="{{ base }}/" target="_top" aria-label="Sign in">
+  <table role="presentation">
+    <tr><td>Username</td><td><input name="username" aria-label="Username" autocomplete="off"></td></tr>
+    <tr><td>Password</td><td><input name="password" type="password" aria-label="Password" autocomplete="off"></td></tr>
+    <tr><td colspan="2">{{ submit('Sign in', 'Sign In', tenant.css_class) }}</td></tr>
+  </table>
+</form>
+{% endblock %}

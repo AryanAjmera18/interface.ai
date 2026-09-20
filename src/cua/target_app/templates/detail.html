@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Member detail{% endblock %}
+{% block body %}
+<h1>Member detail</h1>
+<table role="presentation" class="{{ tenant.css_class }}">
+  <tr><td colspan="2"><h2>Identity summary</h2></td></tr>
+  <tr><td>{{ tenant.member_label }}</td><td>{{ page.member.member_id }}</td></tr>
+  <tr><td>Name</td><td>{{ page.member.name }}</td></tr>
+  <tr><td>Address</td><td>{{ page.member.address }}</td></tr>
+</table>
+<h2>Accounts</h2>
+<table aria-label="Member accounts">
+  <caption>Balances as of {{ page.as_of }}</caption>
+  <tr><th scope="col">Account</th><th scope="col">Type</th><th scope="col">Nickname</th><th scope="col">Balance</th></tr>
+  {% for account in (page.member.accounts|reverse if tenant.reverse_account_rows else page.member.accounts) %}
+  <tr><td>{{ account.account_id }}</td><td>{{ account.account_type }}</td><td>{{ account.nickname }}</td><td>${{ '%.2f'|format(account.balance) }}</td></tr>
+  {% endfor %}
+</table>
+<form name="f1" method="get" action="{{ base }}/ui/open" aria-label="{{ tenant.open_account_label }}">
+  <input type="hidden" name="member_id" value="{{ page.member.member_id }}">
+  <table role="presentation"><tr><td>
+    <span class="{{ tenant.css_class }}" role="button" tabindex="0" aria-label="{{ tenant.open_account_label }}"
+          onclick="document.forms['f1'].requestSubmit()"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">{{ tenant.open_account_label }}</span>
+  </td></tr></table>
+</form>
+{% endblock %}

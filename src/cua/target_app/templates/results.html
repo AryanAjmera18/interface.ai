@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Search results{% endblock %}
+{% block body %}
+<h1>Search results</h1>
+<table aria-label="Members"><caption>Matching members</caption>
+  <tr><th scope="col">Member ID</th><th scope="col">Name</th><th scope="col">Action</th></tr>
+  <tr><td>{{ page.member.member_id }}</td><td>{{ page.member.name }}</td>
+    <td><a class="{{ tenant.css_class }}" href="{{ base }}/ui/detail?member_id={{ page.member.member_id }}" aria-label="View member {{ page.member.member_id }}">Details</a></td></tr>
+</table>
+{% endblock %}

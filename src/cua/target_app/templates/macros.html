@@ -1,0 +1,5 @@
+{% macro submit(name, text, css) -%}
+<a href="javascript:void(0)" role="button" aria-label="{{ name }}" class="{{ css }}"
+   onclick="document.forms['f1'].requestSubmit()"
+   onkeydown="if(event.key===' '){event.preventDefault();this.click()}">{{ text }}</a>
+{%- endmacro %}

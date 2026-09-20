@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "macros.html" import submit %}
+{% block title %}Additional confirmation{% endblock %}
+{% block body %}
+<h1>Additional confirmation</h1>
+<div role="dialog" aria-modal="true" aria-label="Confirm deposit product">
+  <h2>Submit deposit product?</h2><p>This creates the account and transfers the reviewed deposit.</p>
+  <form name="f1" method="post" action="{{ base }}/ui/commit" aria-label="Submit deposit product">
+    <input type="hidden" name="token" value="{{ page.token }}">
+    {{ submit('Submit deposit product', 'Submit product', tenant.css_class) }}
+  </form>
+</div>
+<script>document.querySelector('[role="dialog"] [role="button"]').focus()</script>
+{% endblock %}

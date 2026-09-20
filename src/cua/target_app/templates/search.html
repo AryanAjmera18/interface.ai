@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% from "macros.html" import submit %}
+{% block title %}Member search{% endblock %}
+{% block body %}
+<h1>Member search</h1>
+<form name="f1" action="{{ base }}/ui/search" method="post" aria-label="Member search">
+  <table role="presentation">
+    <tr><td>{{ tenant.member_label }}</td><td><input name="member_id" aria-label="{{ tenant.member_label }}" inputmode="numeric" autocomplete="off"></td></tr>
+    <tr><td colspan="2">{{ submit('Search members', 'Find', tenant.css_class) }}</td></tr>
+  </table>
+</form>
+{% endblock %}

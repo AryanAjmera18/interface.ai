@@ -1,0 +1,50 @@
+{
+  "capability_lineage": [],
+  "chain": {
+    "break_at_seq": null,
+    "intact": true,
+    "reason": "Chain and local head agree"
+  },
+  "context": {
+    "capability_ref": null,
+    "kind": "replay",
+    "parent_run_id": null,
+    "run_id": "00000000000000000000000001",
+    "started_at": "2026-01-15T00:00:00Z",
+    "tenant_id": null,
+    "trace_id": "8954022ad2f9b2622b44e6b6d4ca9080"
+  },
+  "drift_observations": [],
+  "duration_ms": 0.0,
+  "evidence_index": {
+    "entries": [],
+    "run_id": "00000000000000000000000001"
+  },
+  "evidence_verified": true,
+  "inputs": {
+    "member_id": {
+      "hint": "last4",
+      "redacted": true,
+      "rule": "ssn",
+      "sha256": "4b6f8243a6b470a0d1db96a50cfd5a694b4a7bdff2c3b55890c9afadd67b4cf3"
+    }
+  },
+  "journal_head_hash": "26ac21cd91c71a5a357fe06f6aa8e5419e0cedd949655750111e14599226b5ad",
+  "model_usage": {
+    "cached_input_tokens": 0,
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0
+  },
+  "policy_decisions": {
+    "allowed": 0,
+    "denied": 0
+  },
+  "pricing": [],
+  "result_summary": {
+    "status": "success"
+  },
+  "span_export_failures": 0,
+  "span_file": "spans.otlp.jsonl"
+}

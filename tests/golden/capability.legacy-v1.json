@@ -1,0 +1,200 @@
+{
+  "capability_id": "00000000000000000000000002",
+  "description": "Synthetic one-step example: populate the member-search field.",
+  "inputs": [
+    {
+      "default": null,
+      "description": "Synthetic member identifier.",
+      "example": {
+        "kind": "string",
+        "value": "10001"
+      },
+      "json_type": "string",
+      "name": "member_id",
+      "required": true,
+      "sensitivity": "internal",
+      "validation": null
+    }
+  ],
+  "name": "enter_member_id",
+  "outcomes": [
+    {
+      "caller_message": "No matching member exists.",
+      "classification": "business",
+      "code": "member_not_found",
+      "detect": {
+        "frame_path": null,
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "No matching member was found. This is a business outcome."
+        },
+        "role": "status"
+      },
+      "recovery": null
+    }
+  ],
+  "outputs": [],
+  "provenance": {
+    "approval": null,
+    "compiler_version": "1.0.0",
+    "derived_from_run_id": "00000000000000000000000001",
+    "lineage": [],
+    "models_used": [
+      {
+        "api_flavor": "offline",
+        "kind": "model",
+        "model_id": "deterministic-v1",
+        "provider": "fake",
+        "structured_output_mode": "json_schema"
+      }
+    ],
+    "parent_capability_id": null,
+    "recorded_at": "2026-01-15T00:00:00Z",
+    "recorder_version": "1.0.0",
+    "tool_schema_hash": "d659f092cad4d14d6d7e05381ab35990ccbebd43aa19afcc64d34fbedb38c4a0"
+  },
+  "schema_version": 1,
+  "status": "candidate",
+  "steps": [
+    {
+      "action": {
+        "kind": "type_text",
+        "value_ref": {
+          "kind": "param_ref",
+          "name": "member_id"
+        }
+      },
+      "checkpoint": {
+        "kind": "field_value_equals",
+        "target": {
+          "frame_path": [
+            "Content",
+            "Member workspace"
+          ],
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "normalized",
+            "value": "Member ID"
+          },
+          "node_path": null,
+          "role": "textbox"
+        },
+        "value_ref": {
+          "kind": "param_ref",
+          "name": "member_id"
+        }
+      },
+      "intent": "Enter the caller's synthetic member ID.",
+      "on_outcome": [
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        }
+      ],
+      "ordinal": 1,
+      "preconditions": [
+        {
+          "frame_path": [
+            "Content",
+            "Member workspace"
+          ],
+          "kind": "ax_node_exists",
+          "max_count": 1,
+          "min_count": 1,
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "normalized",
+            "value": "Member ID"
+          },
+          "role": "textbox"
+        }
+      ],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-01-15T00:00:00Z",
+        "decided_by": {
+          "api_flavor": "offline",
+          "kind": "model",
+          "model_id": "deterministic-v1",
+          "provider": "fake",
+          "structured_output_mode": "json_schema"
+        },
+        "decision_id": "00000000000000000000000003",
+        "discovery_run_id": "00000000000000000000000001",
+        "edits": [],
+        "observation_hash": "6cd00c100e724bd0fca81fdc8b169d38fbe5ed49403d2d0b1be381d876a39aa0",
+        "observation_id": "00000000000000000000000001",
+        "prompt_hash": "ebb24e6420c6df769702a68173dbe69d464ec8516f343dd4fc3998324496f7c5",
+        "prompt_template_id": "member-entry.v1",
+        "rationale_digest": "7dbd08c7920f1d8706f24e8b000a217c4e9063799fcd985ec9741ed12e8e8e22",
+        "tool_call_id": "fake-call-1"
+      },
+      "risk": "reversible",
+      "step_id": "enter-member",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "evidence_id": "00000000000000000000000001",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-01-15T00:00:00Z",
+            "rationale": "Unique named textbox in the recorded member workspace.",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Member ID"
+              },
+              "role": "textbox"
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "timeout_ms": 2000
+      }
+    }
+  ],
+  "target": {
+    "allowlist_ref": "local-demo.v1",
+    "app_id": "cua-synthetic-bank",
+    "entry_point": "http://127.0.0.1:8099/t/alpha/",
+    "recorded_fingerprint": {
+      "app_id": "cua-synthetic-bank",
+      "app_version": "0.1.0",
+      "config_hash": "adc957f5621d18bb12b0d08c8865d8d75085ee1eb32a74a9c77e65415e508160",
+      "observed_at": "2026-01-15T00:00:00Z",
+      "tenant_id": "alpha",
+      "ui_revision": "legacy-frames-1"
+    },
+    "surface_kind": "web",
+    "tenant_id": "alpha"
+  },
+  "version": "1.0.0"
+}

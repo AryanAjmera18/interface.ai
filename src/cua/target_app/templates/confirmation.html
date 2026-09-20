@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Sub-account created{% endblock %}
+{% block body %}
+<h1>Sub-account created</h1>
+<p role="status" data-outcome="created">Reference {{ page.receipt.reference }}</p>
+<p>{{ page.receipt.account.account_type }} — {{ page.receipt.account.nickname }}</p>
+<p>Opening balance: ${{ '%.2f'|format(page.receipt.account.balance) }}</p>
+<a class="{{ tenant.css_class }}" aria-label="Return to member detail" href="{{ base }}/ui/detail?member_id={{ page.receipt.member_id }}">Return to member</a>
+{% endblock %}

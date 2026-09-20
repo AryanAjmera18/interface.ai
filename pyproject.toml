@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling~=1.32.3"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cua"
+version = "0.1.0"
+description = "Computer-use capability discovery, deterministic replay, and evidence."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydantic~=2.13.5",
+    "instructor~=1.17.0",
+    "langgraph~=1.2.11",
+    "langgraph-checkpoint-sqlite~=3.1.1",
+    "langchain-core~=1.6.3",
+    "langchain-anthropic~=1.7.2",
+    "langsmith~=0.12.6",
+    "opentelemetry-sdk~=1.44.0",
+    "opentelemetry-exporter-otlp-proto-http~=1.44.0",
+    "playwright~=1.63.0",
+    "structlog~=26.1.0",
+    "fastapi~=0.141.1",
+    "uvicorn~=0.53.0",
+    "jinja2~=3.1.6",
+    "typer~=0.27.2",
+    "python-ulid~=4.0.1",
+    "pyyaml~=6.0.3",
+    "python-dotenv~=1.2.3",
+    "httpx~=0.28.1",
+    "faker~=40.39.0",
+]
+
+[project.scripts]
+cua = "cua.cli.__main__:app"
+
+[dependency-groups]
+dev = [
+    "pytest~=9.1.1",
+    "pytest-asyncio~=1.4.0",
+    "pytest-cov~=7.1.0",
+    "hypothesis~=6.168.0",
+    "mypy~=2.3.1",
+    "ruff~=0.16.8",
+    "import-linter~=2.15.0",
+    "pre-commit~=4.6.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cua"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "T201"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/cua"]
+strict = true
+
+# protobuf ships no complete typing metadata for MessageToDict; OTel owns the runtime shape.
+[[tool.mypy.overrides]]
+module = "google.protobuf.json_format"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = '-m "not live and not integration" --strict-markers --cov=src/cua/domain --cov=src/cua/observability --cov=src/cua/policy --cov-report=term-missing --cov-fail-under=80'
+markers = [
+    "live: requires live services or models; excluded from the default suite and CI",
+    "integration: exercises multiple components using local fixtures only",
+]
+
+[tool.coverage.run]
+branch = true
+omit = ["src/cua/cli/*", "src/cua/discovery/live/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

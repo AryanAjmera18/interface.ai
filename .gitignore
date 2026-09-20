@@ -1,0 +1,33 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+/evidence/*
+!/evidence/demo/
+# Preserve failure narratives, never their pre-mask AX blobs.
+!/evidence/discovery-00[1-9]/
+/evidence/discovery-00[1-9]/*
+!/evidence/discovery-00[1-9]/journal.ndjson
+!/evidence/discovery-00[1-9]/manifest.json
+# Attempt 010 passed the identity, prompt, and key-material privacy scans.
+!/evidence/discovery-010/
+/evidence/discovery-010/browser-profile/
+/evidence/discovery-010/*.lock
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+ms-playwright/

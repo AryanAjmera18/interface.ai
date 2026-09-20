@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "macros.html" import submit %}
+{% block title %}System Notice{% endblock %}
+{% block body %}
+<h1>System Notice</h1>
+<div role="dialog" aria-modal="true" aria-label="System Notice" data-outcome="unexpected_interstitial">
+  <h2>Host maintenance notice</h2><p>Dismiss this notice to continue your pending operation.</p>
+  <form name="f1" method="post" action="{{ base }}/ui/dismiss" aria-label="Dismiss notice">
+    {{ submit('Dismiss notice', 'Acknowledge', tenant.css_class) }}
+  </form>
+</div>
+<script>document.querySelector('[role="dialog"] [role="button"]').focus()</script>
+{% endblock %}

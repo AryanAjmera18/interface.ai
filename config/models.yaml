@@ -1,0 +1,28 @@
+# Real discovery is configured explicitly; tests inject fake clients and remain offline.
+profiles:
+  - role: discovery_planner
+    model:
+      kind: model
+      provider: openai
+      model_id: gpt-6-astra
+      api_flavor: responses
+      structured_output_mode: json_schema
+      reasoning_effort: medium
+    max_output_tokens: 2048
+  - role: extractor
+    model:
+      kind: model
+      provider: openai
+      model_id: gpt-5.6-luna
+      api_flavor: responses
+      structured_output_mode: json_schema
+      reasoning_effort: low
+    max_output_tokens: 2048
+  - role: catalog_agent
+    model:
+      kind: model
+      provider: fake
+      model_id: deterministic-v1
+      api_flavor: offline
+      structured_output_mode: json_schema
+    max_output_tokens: 2048

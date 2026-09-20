@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "macros.html" import submit %}
+{% block title %}Open sub-account{% endblock %}
+{% block body %}
+<h1>{{ tenant.open_account_label }}</h1>
+<form name="f1" method="post" action="{{ base }}/ui/review" aria-label="Sub-account details">
+<input type="hidden" name="member_id" value="{{ page.member.member_id }}">
+<table role="presentation">
+{% for field in tenant.field_order %}
+  {% if field == 'account_type' %}
+  <tr><td>Account type</td><td><select name="account_type" aria-label="Account type">
+    {% for value in ['Savings', 'Checking'] %}<option{% if value == page.form.account_type %} selected{% endif %}>{{ value }}</option>{% endfor %}
+  </select></td></tr>
+  {% elif field == 'nickname' %}
+  <tr><td>Nickname</td><td><input name="nickname" aria-label="Nickname" maxlength="40" value="{{ page.form.nickname }}"></td></tr>
+  {% elif field == 'initial_deposit' %}
+  <tr><td>Initial deposit</td><td><input name="initial_deposit" aria-label="Initial deposit" inputmode="decimal" value="{{ page.form.initial_deposit }}"{% if page.error %} aria-invalid="true" aria-description="{{ page.error }}"{% endif %}>
+    {% if page.error %}<p role="alert" data-outcome="validation_error">{{ page.error }}</p>{% endif %}</td></tr>
+  {% else %}
+  <tr><td>Funding source</td><td><select name="funding_source" aria-label="Funding source">
+    {% for account in page.member.accounts %}<option value="{{ account.account_id }}"{% if account.account_id == page.form.funding_source %} selected{% endif %}>{{ account.account_type }} {{ account.account_id }}</option>{% endfor %}
+  </select></td></tr>
+  {% endif %}
+{% endfor %}
+<tr><td colspan="2">{{ submit('Review sub-account', 'Continue', tenant.css_class) }}</td></tr>
+</table></form>
+{% endblock %}

@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.15"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Install fixture dependencies
+        run: uv pip install -r src/cua/target_app/requirements.txt
+      - name: Lint
+        run: uv run --locked ruff check .
+      - name: Check formatting
+        run: uv run --locked ruff format --check .
+      - name: Type check
+        run: uv run --locked mypy --strict src/cua
+      - name: Check dependency layers
+        run: uv run --locked lint-imports
+      - name: Test with coverage
+        run: uv run --locked pytest
+
+  # Browser tests are slower and more failure-prone than static checks. Keep a fast lane
+  # useful, rather than training developers to ignore one slow/flaky combined job.
+  browser:
+    name: Chromium browser tests (required)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.15"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            src/cua/target_app/requirements.txt
+      - run: uv sync --locked
+      - run: uv pip install -r src/cua/target_app/requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+      - run: uv run --locked playwright install --with-deps chromium
+      - name: Verify nested-frame accessibility in Chromium
+        env:
+          CUA_BROWSER_SMOKE: "1"
+        run: >-
+          uv run --locked pytest -m integration --no-cov
+
+  required:
+    name: Required verification
+    needs: [checks, browser]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # Select this stable check in the repository's branch-protection/ruleset settings.
+      - name: Require both lanes
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          BROWSER: ${{ needs.browser.result }}
+        run: test "$CHECKS" = success && test "$BROWSER" = success

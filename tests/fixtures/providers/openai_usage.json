@@ -1,0 +1,6 @@
+{
+  "input_tokens": 150,
+  "output_tokens": 40,
+  "input_tokens_details": {"cached_tokens": 50},
+  "output_tokens_details": {"reasoning_tokens": 12}
+}

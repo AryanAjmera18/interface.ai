@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Invalid request{% endblock %}
+{% block body %}<h1>Invalid request</h1><p role="alert" data-outcome="invalid_request">{{ page.error }}</p><a href="{{ base }}/ui/search" aria-label="Member search">Return to search</a>{% endblock %}

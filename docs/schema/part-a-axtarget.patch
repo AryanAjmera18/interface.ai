@@ -1,0 +1,79 @@
+--- a/src/cua/domain/predicates.py
++++ b/src/cua/domain/predicates.py
+@@ -15,21 +15,54 @@
+ from cua.domain.observation import AxNode, AxState, Observation, walk_ax
+ 
+ 
++class AmbiguousTargetError(ValueError):
++    """More than one semantic match; refine the container or explicitly choose a scoped nth."""
++
++
+ class AxTarget(DomainModel):
++    """Position is acceptable inside a semantic container, never as a substitute for one.
++
++    Depth counts targets including this leaf (at most three). Ancestors must themselves
++    resolve uniquely; an ambiguous container cannot silently widen the search.
++    """
++
+     role: NonEmpty
+     name_matcher: NameMatcher
+     frame_path: tuple[str, ...] | None = None
+     node_path: tuple[int, ...] | None = None
++    within: "AxTarget | None" = None
++    nth: int | None = Field(default=None, ge=0)
++
++    @model_validator(mode="after")
++    def bounded_scope(self) -> Self:
++        if self.nth is not None and self.within is None:
++            raise ValueError("nth requires a semantically identified within container")
++        depth, parent = 1, self.within
++        while parent is not None:
++            depth, parent = depth + 1, parent.within
++        if depth > 3:
++            raise ValueError("AxTarget recursion depth must not exceed 3 targets")
++        return self
+ 
+     def select(self, observation: Observation) -> tuple[AxNode, ...]:
+-        return tuple(
++        roots = self.within.select(observation) if self.within else (observation.ax_root,)
++        matches = tuple(
+             node
+-            for node in walk_ax(observation.ax_root)
++            for root in roots
++            for node in (walk_ax(root)[1:] if self.within else walk_ax(root))
+             if node.role == self.role
+             and self.name_matcher.matches(node.name)
+             and (self.frame_path is None or node.frame_path == self.frame_path)
+             and (self.node_path is None or node.node_path == self.node_path)
+         )
++        if self.nth is not None:
++            return matches[self.nth : self.nth + 1]
++        if len(matches) > 1:
++            raise AmbiguousTargetError(
++                f"Expected one {self.role} with {self.name_matcher.describe()}; "
++                f"matched {len(matches)}. Add a semantic within scope or scoped nth."
++            )
++        return matches
+ 
+ 
+ class AxNodeExists(DomainModel):
+@@ -178,12 +211,13 @@
+             + "; ".join(child.explanation for child in children),
+         )
+     if isinstance(predicate, AxNodeExists):
+-        target = AxTarget(
+-            role=predicate.role,
+-            name_matcher=predicate.name_matcher,
+-            frame_path=predicate.frame_path,
+-        )
+-        count = len(target.select(observation))
++        # A cardinality assertion intentionally counts all matches; it is not target resolution.
++        count = sum(
++            node.role == predicate.role
++            and predicate.name_matcher.matches(node.name)
++            and (predicate.frame_path is None or node.frame_path == predicate.frame_path)
++            for node in walk_ax(observation.ax_root)
++        )
+         upper = predicate.max_count if predicate.max_count is not None else "unbounded"
+         return PredicateResult(
+             satisfied=count >= predicate.min_count

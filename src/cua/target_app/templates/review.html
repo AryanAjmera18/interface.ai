@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "macros.html" import submit %}
+{% block title %}Review sub-account{% endblock %}
+{% block body %}
+<h1>Review sub-account</h1>
+<table role="presentation">
+  <tr><td>Account type</td><td>{{ page.form.account_type }}</td></tr>
+  <tr><td>Nickname</td><td>{{ page.form.nickname }}</td></tr>
+  <tr><td>Initial deposit</td><td>{{ page.form.initial_deposit }}</td></tr>
+  <tr><td>Funding source</td><td>{{ page.form.funding_source }}</td></tr>
+</table>
+<form name="f1" method="post" action="{{ base }}/ui/confirm" aria-label="Confirm sub-account">
+  <input type="hidden" name="token" value="{{ page.token }}">
+  {{ submit('Confirm sub-account', 'Confirm', tenant.css_class) }}
+</form>
+{% endblock %}

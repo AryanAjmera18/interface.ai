@@ -1,0 +1,8 @@
+{
+  "action.v1.json": "b67f842f5c9411eb7134d5e7dd97a1b9f48dbcc26b760d636fbe31daa98f4ecf",
+  "capability.v1.json": "7df0addb8d08d69efa3aadc703b1449ee090b5e750ea8d693e5d20f24b508596",
+  "decision-request.v1.json": "8013f96ba6c9143086f0da972a5fa8e039c2b7a79461f9a49b86e78f15579e19",
+  "decision-result.v1.json": "ed76d4e456f09724a3e8638b1b255928909f3ab59c4fb74b9dd50e244ee91b6e",
+  "observation.v1.json": "d66f24bb1ee092666b788e3a88787d430fd6e86ac50266027c3ac7ddcf3ad82a",
+  "replay-result.v1.json": "b8aadc8deae21df3b7721fae7d2add071c46249dd4a4174dd0586105cb3defa1"
+}

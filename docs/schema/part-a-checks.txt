@@ -1,0 +1,90 @@
+uv run --locked ruff check .
+All checks passed!
+uv run --locked ruff format --check .
+63 files already formatted
+uv run --locked lint-imports
+=============
+Import Linter
+=============
+
+
+---------
+Contracts
+---------
+
+Analyzed 61 files, 134 dependencies.
+------------------------------------
+
+Domain is framework-free KEPT
+Policy is framework-free KEPT
+Replay is framework-free KEPT
+Application dependency layers KEPT
+Automation cannot import the target application KEPT
+
+Contracts: 5 kept, 0 broken.
+uv run --locked mypy --strict src/cua
+Success: no issues found in 33 source files
+uv run --locked pytest
+============================= test session starts =============================
+platform win32 -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\interface.ai
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1, Faker-40.39.0, hypothesis-6.168.0, langsmith-0.12.6, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 167 items
+
+tests\browser\test_target_app_smoke.py ss                                [  1%]
+tests\integration\target_app\test_app.py ............................... [ 19%]
+.............                                                            [ 27%]
+tests\unit\domain\test_approval.py ....                                  [ 29%]
+tests\unit\domain\test_contracts.py .................................... [ 51%]
+                                                                         [ 51%]
+tests\unit\domain\test_invariants.py ................................... [ 72%]
+...........                                                              [ 79%]
+tests\unit\domain\test_relative_scope.py ...........                     [ 85%]
+tests\unit\domain\test_schemas.py ...............                        [ 94%]
+tests\unit\test_scaffold.py .                                            [ 95%]
+tests\unit\test_target_app_boundary.py ..                                [ 96%]
+tests\unit\test_target_app_cli.py ......                                 [100%]
+
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.12.14-final-0 _______________
+
+Name                                Stmts   Miss Branch BrPart  Cover   Missing
+-------------------------------------------------------------------------------
+src\cua\__init__.py                     1      0      0      0   100%
+src\cua\catalog\__init__.py             0      0      0      0   100%
+src\cua\discovery\__init__.py           0      0      0      0   100%
+src\cua\domain\__init__.py              0      0      0      0   100%
+src\cua\domain\actions.py              34      0      0      0   100%
+src\cua\domain\capability.py          185      0     74      1    99%   269->253
+src\cua\domain\common.py               43      0      0      0   100%
+src\cua\domain\locators.py             72      0      6      0   100%
+src\cua\domain\migrations.py           64      1     22      2    97%   52, 69->71
+src\cua\domain\models.py               51      0      4      0   100%
+src\cua\domain\names.py                38      0     16      1    98%   51->exit
+src\cua\domain\observation.py          61      0      2      0   100%
+src\cua\domain\ports.py                31      0      0      0   100%
+src\cua\domain\predicates.py          130      0     24      0   100%
+src\cua\domain\provenance.py           66      0     12      0   100%
+src\cua\domain\results.py              45      0      0      0   100%
+src\cua\domain\schemas.py              56      1     30      2    97%   39->exit, 51
+src\cua\domain\steps.py                53      0      6      0   100%
+src\cua\escalation\__init__.py          0      0      0      0   100%
+src\cua\observability\__init__.py       0      0      0      0   100%
+src\cua\policy\__init__.py              0      0      0      0   100%
+src\cua\replay\__init__.py              0      0      0      0   100%
+src\cua\surface\__init__.py             0      0      0      0   100%
+src\cua\target_app\__init__.py          0      0      0      0   100%
+src\cua\target_app\__main__.py          8      1      2      1    80%   23
+src\cua\target_app\app.py             125      3     40      3    96%   65, 152, 183
+src\cua\target_app\config.py           30      0      0      0   100%
+src\cua\target_app\faults.py           29      1      4      1    94%   67
+src\cua\target_app\models.py           92      0     10      0   100%
+src\cua\target_app\state.py            28      0      6      1    97%   58->60
+src\cua\target_app\workflow.py         76      3     42      2    96%   93-94, 114
+-------------------------------------------------------------------------------
+TOTAL                                1318     10    300     14    99%
+Required test coverage of 80% reached. Total coverage: 98.52%
+======================= 165 passed, 2 skipped in 10.90s =======================

@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}System error{% endblock %}
+{% block body %}<h1>System error</h1><p role="alert" data-outcome="server_error_500">500 — The host could not complete this operation. No change was made.</p><a href="{{ base }}/ui/search" aria-label="Member search">Return to search</a>{% endblock %}

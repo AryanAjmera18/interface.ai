@@ -1,0 +1,43 @@
+allowlist:
+  url_patterns:
+    - {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/**"}
+  allowed_frames:
+    - []
+    - [Content, Member workspace]
+    - [Content, Member detail]
+    - [Content, Open sub-account]
+  action_kinds_by_route:
+    - route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/**"}
+      action_kinds: [navigate, click, type_text, select_option, read_value, wait_for, assert, dismiss, scroll]
+risk_rules:
+  - rule_id: account.confirm-submit
+    action_kinds: [click]
+    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/accounts/open/review"}
+    target: {role: button, name: Confirm sub-account}
+    risk: irreversible
+  - rule_id: account.confirm-submit-beta
+    action_kinds: [click]
+    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/accounts/open/review"}
+    target: {role: button, name: Confirm deposit product}
+    risk: irreversible
+  - rule_id: form.data-entry
+    action_kinds: [type_text, select_option]
+    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/**"}
+    risk: reversible
+  - rule_id: navigation.read-and-control
+    action_kinds: [navigate, click, read_value, wait_for, assert, dismiss, scroll]
+    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/**"}
+    risk: safe
+irreversible_policy: require_human_confirmation
+data:
+  field_sensitivity_overrides:
+    - {field_path: /inputs/member_id, sensitivity: internal}
+    - {field_path: /inputs/password, sensitivity: secret}
+  max_chars_extracted: 4096
+  screenshot_policy: masked_only
+limits:
+  max_steps: 50
+  max_wall_clock_s: 300
+  max_llm_calls: 30
+  max_cost_usd: 5.0
+  max_tokens: 100000

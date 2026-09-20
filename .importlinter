@@ -1,0 +1,106 @@
+[importlinter]
+root_package = cua
+include_external_packages = True
+
+[importlinter:contract:domain-framework-free]
+name = Domain is framework-free
+type = forbidden
+source_modules =
+    cua.domain
+forbidden_modules =
+    langchain
+    langchain_core
+    langchain_anthropic
+    langchain_community
+    langgraph
+    instructor
+    langsmith
+    playwright
+    fastapi
+
+[importlinter:contract:policy-framework-free]
+name = Policy is framework-free
+type = forbidden
+source_modules =
+    cua.policy
+forbidden_modules =
+    langchain
+    langchain_core
+    langchain_anthropic
+    langchain_community
+    langgraph
+    instructor
+    langsmith
+    playwright
+    fastapi
+
+[importlinter:contract:replay-framework-free]
+name = Replay is framework-free
+type = forbidden
+source_modules =
+    cua.replay
+forbidden_modules =
+    langchain
+    langchain_core
+    langchain_anthropic
+    langchain_community
+    langgraph
+    instructor
+    langsmith
+    playwright
+    fastapi
+
+[importlinter:contract:layers]
+name = Application dependency layers
+type = layers
+layers =
+    cua.cli
+    cua.catalog
+    cua.discovery | cua.replay | cua.escalation
+    cua.surface | cua.policy | cua.observability
+    cua.domain
+
+[importlinter:contract:target-app-boundary]
+name = Automation cannot import the target application
+type = forbidden
+source_modules =
+    cua.*
+forbidden_modules =
+    cua.target_app
+
+[importlinter:contract:playwright-boundary]
+name = Only the surface adapter imports Playwright
+type = forbidden
+source_modules =
+    cua.domain
+    cua.policy
+    cua.replay
+    cua.discovery
+    cua.catalog
+    cua.escalation
+    cua.observability
+    cua.cli
+    cua.target_app
+forbidden_modules =
+    playwright
+allow_indirect_imports = True
+
+# The synthetic target fixture is deliberately isolated (user-approved exception).
+# Its existing CLI structlog import is not part of automation telemetry.
+[importlinter:contract:telemetry-boundary]
+name = Automation telemetry belongs to observability
+type = forbidden
+source_modules =
+    cua.domain
+    cua.policy
+    cua.replay
+    cua.discovery
+    cua.catalog
+    cua.escalation
+    cua.surface
+    cua.cli
+forbidden_modules =
+    structlog
+    opentelemetry
+    langsmith
+allow_indirect_imports = True

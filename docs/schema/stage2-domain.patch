@@ -1,0 +1,421 @@
+diff --git a/src/cua/domain/capability.py b/src/cua/domain/capability.py
+new file mode 100644
+--- /dev/null
++++ b/src/cua/domain/capability.py
+@@ -0,0 +1,304 @@
++"""The compiler derives artifacts deterministically from the run journal, not model emission.
++
++Artifacts nevertheless remain strict-representable so both providers and LLM-assisted editing
++share one wire format. Typed entry lists resolve open-map keys (as in protobuf map encoding);
++provider-specific shadow DTOs were rejected because they would diverge in semantics and review.
++This module is pure: no I/O, frameworks, or imports from another cua package.
++"""
++
++import re
++from typing import Annotated, Literal, Self
++
++from pydantic import Field, field_validator, model_validator
++
++from cua.domain.actions import ReadValue, SelectOption, TypeText
++from cua.domain.common import (
++    ULID,
++    DomainModel,
++    JsonType,
++    LiteralValue,
++    NonEmpty,
++    ParamRef,
++    SecretRef,
++    Sensitivity,
++    SurfaceKind,
++)
++from cua.domain.observation import SurfaceFingerprint
++from cua.domain.predicates import AxTarget, Predicate
++from cua.domain.provenance import CapabilityProvenance, ModelRef, assert_step_attributable
++from cua.domain.steps import Step
++
++
++class RegexValidation(DomainModel):
++    kind: Literal["regex"] = "regex"
++    pattern: str
++
++    @model_validator(mode="after")
++    def valid_regex(self) -> Self:
++        try:
++            re.compile(self.pattern)
++        except re.error as exc:
++            raise ValueError("Invalid parameter regex") from exc
++        return self
++
++
++class RangeValidation(DomainModel):
++    kind: Literal["range"] = "range"
++    minimum: float | None
++    maximum: float | None
++
++    @model_validator(mode="after")
++    def ordered_range(self) -> Self:
++        if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
++            raise ValueError("minimum must not exceed maximum")
++        return self
++
++
++class EnumValidation(DomainModel):
++    kind: Literal["enum"] = "enum"
++    values: tuple[LiteralValue, ...] = Field(min_length=1)
++
++
++Validation = Annotated[
++    RegexValidation | RangeValidation | EnumValidation, Field(discriminator="kind")
++]
++
++
++class ParamSpec(DomainModel):
++    """UI form parameters are scalars; nested input structure calls for capability decomposition.
++
++    Explicit tagged literals distinguish absent defaults from a null default. Examples must be
++    synthetic by authoring policy; a validator cannot determine whether arbitrary text is real PII.
++    Secret defaults/examples are prohibited instead of trusting a 'synthetic' checkbox.
++    """
++
++    name: NonEmpty
++    json_type: Literal["string", "number", "integer", "boolean", "null"]
++    required: bool
++    default: LiteralValue | None
++    example: LiteralValue | None
++    sensitivity: Sensitivity
++    validation: Validation | None
++    description: NonEmpty
++
++    @model_validator(mode="after")
++    def literal_types(self) -> Self:
++        if self.sensitivity == "secret" and (self.default is not None or self.example is not None):
++            raise ValueError(f"Secret parameter {self.name} cannot embed defaults or examples")
++        if isinstance(self.validation, RegexValidation) and self.json_type != "string":
++            raise ValueError("Regex validation requires a string parameter")
++        if isinstance(self.validation, RangeValidation) and self.json_type not in {
++            "number",
++            "integer",
++        }:
++            raise ValueError("Range validation requires a numeric parameter")
++        enum_values = self.validation.values if isinstance(self.validation, EnumValidation) else ()
++        for literal in (self.default, self.example, *enum_values):
++            if literal is None:
++                continue
++            expected = "number" if self.json_type == "integer" else self.json_type
++            if literal.kind != expected or (
++                self.json_type == "integer"
++                and literal.kind == "number"
++                and not literal.value.is_integer()
++            ):
++                raise ValueError(
++                    f"Parameter {self.name}: literal kind must agree with {self.json_type}"
++                )
++            rule = self.validation
++            value = literal.value
++            if isinstance(rule, RegexValidation) and (
++                not isinstance(value, str) or re.search(rule.pattern, value) is None
++            ):
++                raise ValueError(f"Parameter {self.name}: literal violates regex")
++            if isinstance(rule, RangeValidation) and (
++                not isinstance(value, (int, float))
++                or isinstance(value, bool)
++                or (rule.minimum is not None and float(value) < rule.minimum)
++                or (rule.maximum is not None and float(value) > rule.maximum)
++            ):
++                raise ValueError(f"Parameter {self.name}: literal violates range")
++            if isinstance(rule, EnumValidation) and literal not in rule.values:
++                raise ValueError(f"Parameter {self.name}: literal violates enum")
++        return self
++
++
++class ExtractorSpec(DomainModel):
++    """Extraction is an AX attribute plus optional regex, never executable recorded code."""
++
++    target: AxTarget
++    attribute: Literal["value", "name", "description"]
++    regex: str | None = None
++
++    @field_validator("regex")
++    @classmethod
++    def valid_regex(cls, value: str | None) -> str | None:
++        if value is not None:
++            try:
++                re.compile(value)
++            except re.error as exc:
++                raise ValueError("Invalid extraction regex") from exc
++        return value
++
++
++class OutputSpec(DomainModel):
++    name: NonEmpty
++    json_type: JsonType
++    produced_by_step_id: NonEmpty
++    extractor: ExtractorSpec
++    nullable: bool
++    sensitivity: Sensitivity
++    description: NonEmpty
++
++
++class RecoveryAction(DomainModel):
++    """Bounded named recovery only; arbitrary scripts and unbounded retry loops were rejected."""
++
++    kind: Literal["retry", "refresh", "reauthenticate", "dismiss"]
++    max_attempts: int = Field(ge=1, le=10)
++
++
++class OutcomeSpec(DomainModel):
++    code: NonEmpty
++    detect: Predicate
++    classification: Literal["business", "recoverable", "hard"]
++    caller_message: NonEmpty
++    recovery: RecoveryAction | None
++
++    @model_validator(mode="after")
++    def recovery_contract(self) -> Self:
++        if self.classification == "recoverable" and self.recovery is None:
++            raise ValueError(
++                f"Outcome {self.code}: recoverable requires an explicit recovery action"
++            )
++        if self.classification != "recoverable" and self.recovery is not None:
++            raise ValueError(
++                f"Outcome {self.code}: {self.classification} forbids recovery; "
++                "business is an answer, not a crash"
++            )
++        return self
++
++
++class CapabilityTarget(DomainModel):
++    surface_kind: SurfaceKind
++    app_id: NonEmpty
++    entry_point: NonEmpty
++    tenant_id: str | None
++    allowlist_ref: NonEmpty
++    recorded_fingerprint: SurfaceFingerprint
++
++
++class UndeclaredOutcomeError(ValueError):
++    """An edge names no declared outcome; fix the code or declare its detection semantics."""
++
++
++class Capability(DomainModel):
++    schema_version: Literal[1] = 1
++    capability_id: ULID
++    name: NonEmpty
++    description: NonEmpty
++    version: str = Field(
++        pattern=(
++            r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
++            r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
++        )
++    )
++    status: Literal["draft", "candidate", "approved"]
++    target: CapabilityTarget
++    inputs: tuple[ParamSpec, ...]
++    outputs: tuple[OutputSpec, ...]
++    steps: tuple[Step, ...] = Field(min_length=1)
++    outcomes: tuple[OutcomeSpec, ...]
++    provenance: CapabilityProvenance
++
++    @field_validator("version")
++    @classmethod
++    def valid_semver_prerelease(cls, value: str) -> str:
++        """SemVer forbids leading zeroes in numeric prerelease IDs, unlike build metadata."""
++        core = value.split("+", 1)[0]
++        if "-" in core:
++            for identifier in core.split("-", 1)[1].split("."):
++                if identifier.isdigit() and len(identifier) > 1 and identifier.startswith("0"):
++                    raise ValueError(
++                        "SemVer numeric prerelease identifiers cannot have leading zeroes"
++                    )
++        return value
++
++    @model_validator(mode="after")
++    def coherent_artifact(self) -> Self:
++        self.assert_attributable()
++        for label, names in (
++            ("steps", [s.step_id for s in self.steps]),
++            ("inputs", [p.name for p in self.inputs]),
++            ("outputs", [o.name for o in self.outputs]),
++            ("outcomes", [o.code for o in self.outcomes]),
++        ):
++            if len(names) != len(set(names)):
++                raise ValueError(f"Duplicate {label}; names must be unique")
++        if [step.ordinal for step in self.steps] != list(range(1, len(self.steps) + 1)):
++            raise ValueError("Step ordinals must be contiguous, ordered, and start at 1")
++        declared = {outcome.code: outcome for outcome in self.outcomes}
++        inputs = {param.name: param for param in self.inputs}
++        for step in self.steps:
++            for entry in step.on_outcome:
++                if entry.code not in declared:
++                    raise UndeclaredOutcomeError(
++                        f"Step {step.step_id}: outcome {entry.code!r} is undeclared; "
++                        "add an OutcomeSpec or correct the code"
++                    )
++                expected = {"business": "return", "recoverable": "recover", "hard": "fail"}[
++                    declared[entry.code].classification
++                ]
++                if entry.handling.kind != expected:
++                    raise ValueError(
++                        f"Step {step.step_id}: {entry.code} requires handling {expected}"
++                    )
++            if isinstance(step.action, (TypeText, SelectOption)):
++                ref = step.action.value_ref
++                if isinstance(ref, (ParamRef, SecretRef)):
++                    if ref.name not in inputs:
++                        raise ValueError(f"Step {step.step_id}: undeclared input {ref.name!r}")
++                    if (inputs[ref.name].sensitivity == "secret") != isinstance(ref, SecretRef):
++                        raise ValueError(
++                            f"Step {step.step_id}: secret inputs require secret_ref; "
++                            "other inputs require param_ref"
++                        )
++        for output in self.outputs:
++            producer = next(
++                (s for s in self.steps if s.step_id == output.produced_by_step_id), None
++            )
++            if (
++                producer is None
++                or not isinstance(producer.action, ReadValue)
++                or producer.action.output_name != output.name
++            ):
++                raise ValueError(
++                    f"Output {output.name}: produced_by_step_id must name its ReadValue step"
++                )
++        for step in self.steps:
++            if isinstance(step.action, ReadValue) and not any(
++                o.name == step.action.output_name and o.produced_by_step_id == step.step_id
++                for o in self.outputs
++            ):
++                raise ValueError(f"Step {step.step_id}: ReadValue needs a matching OutputSpec")
++        if self.status == "approved" and self.provenance.approval is None:
++            raise ValueError("Approved artifacts require a named ApprovalRecord")
++        fp = self.target.recorded_fingerprint
++        if fp.app_id != self.target.app_id or (
++            self.target.tenant_id is not None and fp.tenant_id != self.target.tenant_id
++        ):
++            raise ValueError("Capability target disagrees with its recorded fingerprint")
++        return self
++
++    def assert_attributable(self) -> None:
++        for step in self.steps:
++            assert_step_attributable(step.step_id, step.provenance)
++            if step.provenance.discovery_run_id != self.provenance.derived_from_run_id:
++                raise ValueError(
++                    f"Step {step.step_id}: discovery run differs from capability provenance"
++                )
++            if (
++                isinstance(step.provenance.decided_by, ModelRef)
++                and step.provenance.decided_by not in self.provenance.models_used
++            ):
++                raise ValueError(f"Step {step.step_id}: deciding model is absent from models_used")
+diff --git a/src/cua/domain/steps.py b/src/cua/domain/steps.py
+new file mode 100644
+--- /dev/null
++++ b/src/cua/domain/steps.py
+@@ -0,0 +1,107 @@
++"""Define reviewable replay steps; forbid I/O, frameworks, and other cua packages."""
++
++from collections.abc import Mapping
++from functools import cached_property
++from types import MappingProxyType
++from typing import Literal, Never, Self
++
++from pydantic import Field, field_serializer, model_validator
++
++from cua.domain.actions import Action, Click, Dismiss, ReadValue, SelectOption, TypeText
++from cua.domain.common import DomainModel, NonEmpty
++from cua.domain.locators import LocatorLadder
++from cua.domain.predicates import Predicate
++from cua.domain.provenance import StepProvenance
++
++
++class RetryPolicy(DomainModel):
++    max_attempts: int = Field(default=1, ge=1, le=10)
++    delay_ms: int = Field(default=0, ge=0)
++
++
++class StepTiming(DomainModel):
++    settle_strategy: Literal["none", "ax_stable", "navigation"]
++    timeout_ms: int = Field(gt=0)
++    retry: RetryPolicy = Field(default_factory=RetryPolicy)
++
++
++class StepOutcomeHandling(DomainModel):
++    kind: Literal["return", "recover", "fail"]
++
++
++class OutcomeHandlingEntry(DomainModel):
++    code: NonEmpty
++    handling: StepOutcomeHandling
++
++
++class _OutcomeEntries(list[OutcomeHandlingEntry]):
++    """Keep the requested list wire shape without allowing a stale cached mapping.
++
++    A plain list inside a frozen Pydantic model is still mutable. Reject its mutators rather
++    than rely on a convention that edits must reconstruct the Step.
++    """
++
++    def _deny(self, *args: object, **kwargs: object) -> Never:
++        raise TypeError("Outcome entries are immutable; construct and validate a new Step")
++
++    __setitem__ = _deny
++    __delitem__ = _deny
++    __iadd__ = _deny
++    __imul__ = _deny
++    append = _deny
++    clear = _deny
++    extend = _deny
++    insert = _deny
++    pop = _deny
++    remove = _deny
++    reverse = _deny
++    sort = _deny
++
++
++class Step(DomainModel):
++    """Outcome codes use entries on the wire, never arbitrary JSON object keys.
++
++    The cached mapping is read-only and never serialized. The list is frozen after validation;
++    edits must be revalidated as new Steps so neither the mapping nor invariants become stale.
++    """
++
++    step_id: NonEmpty
++    ordinal: int = Field(ge=1)
++    intent: NonEmpty
++    action: Action
++    target: LocatorLadder | None
++    preconditions: tuple[Predicate, ...] = ()
++    checkpoint: Predicate | None
++    risk: Literal["safe", "reversible", "irreversible"]
++    timing: StepTiming
++    on_outcome: list[OutcomeHandlingEntry] = Field(default_factory=list)
++    provenance: StepProvenance
++
++    @cached_property
++    def outcome_map(self) -> Mapping[str, StepOutcomeHandling]:
++        return MappingProxyType({entry.code: entry.handling for entry in self.on_outcome})
++
++    @field_serializer("on_outcome")
++    def sorted_outcomes(self, entries: list[OutcomeHandlingEntry]) -> list[OutcomeHandlingEntry]:
++        return sorted(entries, key=lambda entry: entry.code)
++
++    @model_validator(mode="after")
++    def valid_step(self) -> Self:
++        codes = [entry.code for entry in self.on_outcome]
++        if len(codes) != len(set(codes)):
++            raise ValueError(f"Step {self.step_id}: on_outcome codes must be unique")
++        if (
++            isinstance(self.action, (Click, TypeText, SelectOption, ReadValue, Dismiss))
++            and not self.target
++        ):
++            raise ValueError(
++                f"Step {self.step_id}: {self.action.kind} requires a target locator ladder"
++            )
++        if self.risk == "irreversible" and (
++            self.checkpoint is None or self.timing.retry.max_attempts != 1
++        ):
++            raise ValueError(
++                "Irreversible steps need a checkpoint and exactly one attempt; recovery is explicit"
++            )
++        object.__setattr__(self, "on_outcome", _OutcomeEntries(self.on_outcome))
++        return self

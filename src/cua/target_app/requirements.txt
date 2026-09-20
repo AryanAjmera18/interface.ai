@@ -1,0 +1,3 @@
+# Kept here to honor the Stage 1 scope; root project dependencies remain untouched.
+Faker==40.39.0
+tzdata==2026.4

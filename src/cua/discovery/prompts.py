@@ -4,11 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from cua.discovery.ax_redaction import sanitize_ax
 from cua.discovery.state import InputBinding
 from cua.domain.common import Digest
 from cua.domain.observation import AxNode, Observation
-from cua.observability.redaction import json_value, redact
+from cua.observability.redaction import json_value, redact, redact_ax_for_prompt
 from cua.policy.models import Budget
 
 TEMPLATE_ID = "discovery-planner.v1"
@@ -72,7 +71,9 @@ class PromptRenderer:
             previous_result=previous_result,
             outcomes=outcomes,
             ax_tree=compact_ax(
-                observation.model_copy(update={"ax_root": sanitize_ax(observation.ax_root)})
+                observation.model_copy(
+                    update={"ax_root": redact_ax_for_prompt(observation.ax_root)}
+                )
             ),
         )
 

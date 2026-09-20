@@ -13,7 +13,6 @@ from typing import Any, Literal, cast
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from cua.discovery.ax_redaction import sanitized_ax_payload
 from cua.discovery.candidates import locator_ladder, target_semantics
 from cua.discovery.prompts import TEMPLATE_ID, PromptRenderer
 from cua.discovery.state import DiscoveryState, EscalationRequest, OutputBinding, TurnRecord
@@ -41,7 +40,7 @@ from cua.domain.predicates import PredicateResult
 from cua.domain.steps import StepTiming
 from cua.observability.evidence import EvidenceStore
 from cua.observability.journal import RunJournal
-from cua.observability.redaction import redact
+from cua.observability.redaction import redact, redacted_ax_payload
 from cua.policy.engine import PolicyEngine
 from cua.policy.models import PolicyContext
 
@@ -67,7 +66,7 @@ class DiscoveryAgent:
     def _record_observation(self, observation: Observation) -> None:
         stored = self.evidence.put(
             redact(
-                canonical_json(sanitized_ax_payload(observation.ax_root, observation.hash)).encode()
+                canonical_json(redacted_ax_payload(observation.ax_root, observation.hash)).encode()
             ),
             "application/json",
             kind="ax_snapshot",

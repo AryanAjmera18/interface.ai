@@ -2,12 +2,12 @@
 
 import json
 
-from cua.discovery.ax_redaction import sanitize_ax, sanitized_ax_payload
 from cua.discovery.candidates import locator_ladder
 from cua.domain.common import EvidenceRef
 from cua.domain.names import NameMatcher
 from cua.domain.observation import AxNode
 from cua.domain.predicates import AxTarget
+from cua.observability.redaction import redacted_ax_payload
 from tests.unit.domain.samples import observation
 
 
@@ -44,11 +44,14 @@ def test_identity_summary_and_name_column_are_masked() -> None:
             ),
         ),
     )
-    encoded = json.dumps(sanitized_ax_payload(root, "0" * 64))
+    encoded = json.dumps(redacted_ax_payload(root, "0" * 64))
     assert "Randall Cook" not in encoded
     assert "Gonzalez Extensions" not in encoded
     assert "10023" in encoded
-    assert "[REDACTED]" in json.dumps(sanitize_ax(root).model_dump(mode="json"))
+    marker_text = json.dumps(redacted_ax_payload(root, "0" * 64))
+    assert '"redacted": true' in marker_text
+    assert '"sha256"' in marker_text
+    assert '"rule": "ax:semantic_identity"' in marker_text
 
 
 def test_scoped_target_records_unique_scoped_candidate_before_fallback() -> None:

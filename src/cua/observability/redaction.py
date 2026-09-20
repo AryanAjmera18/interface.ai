@@ -16,6 +16,7 @@ from pydantic import BaseModel, JsonValue, PrivateAttr, field_serializer
 
 from cua.domain.capability import OutputSpec, ParamSpec
 from cua.domain.common import Digest, DomainModel, Sensitivity, canonical_json
+from cua.domain.observation import AxNode
 
 _TOKEN = object()
 
@@ -239,6 +240,89 @@ def _walk(value: JsonValue, path: str, sensitivity: Sensitivity | None = None) -
             result[safe_key] = _walk(child, f"{path}/{pointer(key)}")
         return result
     return value
+
+
+def _ax_sensitive_values(node: AxNode) -> set[str]:
+    """Derive identity values from semantic AX relationships, never presentation classes."""
+    values: set[str] = set()
+    children = node.children
+    for index, child in enumerate(children[:-1]):
+        if child.name.strip().casefold() in {"name", "address"}:
+            value = children[index + 1].name.strip()
+            if value and value != "[REDACTED]":
+                values.add(value)
+    for child in children:
+        if child.role == "table":
+            rows = [row for row in child.children if row.role == "row"]
+            if rows:
+                columns = {
+                    index
+                    for index, header in enumerate(rows[0].children)
+                    if header.name.strip().casefold() in {"name", "address"}
+                }
+                for row in rows[1:]:
+                    for index in columns:
+                        if (
+                            index < len(row.children)
+                            and row.children[index].name
+                            and row.children[index].name != "[REDACTED]"
+                        ):
+                            values.add(row.children[index].name)
+        values.update(_ax_sensitive_values(child))
+    return values
+
+
+def _redact_ax_text(text: str, sensitive: set[str]) -> JsonValue:
+    """Redact the whole AX field when it contains identity data.
+
+    Replacing only the matching substring was rejected because the remainder can still identify a
+    person through aggregate row names. The marker hashes the original complete field, preserving
+    provenance correlation without retaining fragments of the value.
+    """
+    normalized = " ".join(text.split())
+    for value in sorted(sensitive, key=len, reverse=True):
+        if value in text or " ".join(value.split()) in normalized:
+            return _redacted(cast(JsonValue, text), "ax:semantic_identity")
+    return text
+
+
+def redact_ax_tree(root: AxNode) -> JsonValue:
+    """Apply the standard redaction marker shape to sensitive fields in an AX-tree projection."""
+    sensitive = _ax_sensitive_values(root)
+
+    def visit(node: AxNode) -> JsonValue:
+        raw = cast(dict[str, JsonValue], node.model_dump(mode="json", exclude={"children"}))
+        for field in ("name", "value", "description"):
+            value = raw.get(field)
+            if isinstance(value, str):
+                raw[field] = _redact_ax_text(value, sensitive)
+        raw["children"] = [visit(child) for child in node.children]
+        return raw
+
+    return visit(root)
+
+
+def redact_ax_for_prompt(root: AxNode) -> AxNode:
+    """Render marker objects as canonical text because the compact AX grammar is line-oriented."""
+    payload = cast(dict[str, JsonValue], redact_ax_tree(root))
+
+    def restore(value: JsonValue) -> AxNode:
+        node = cast(dict[str, JsonValue], value)
+        children = cast(list[JsonValue], node["children"])
+        fields: dict[str, object] = dict(node)
+        fields["children"] = tuple(restore(child) for child in children)
+        for field in ("name", "value", "description"):
+            item = fields.get(field)
+            if isinstance(item, dict):
+                fields[field] = canonical_json(cast(JsonValue, item))
+        return AxNode.model_validate(fields)
+
+    return restore(payload)
+
+
+def redacted_ax_payload(root: AxNode, observation_hash: str) -> JsonValue:
+    """Persist a standard-marker AX projection plus its raw observation's canonical identity."""
+    return {"observation_hash": observation_hash, "ax_root": redact_ax_tree(root)}
 
 
 def _opaque_png(value: bytes) -> bytes:

@@ -8,18 +8,20 @@ from cua.domain.names import NameMatcher
 from cua.domain.observation import AxNode
 from cua.domain.predicates import AxTarget
 from cua.observability.redaction import redacted_ax_payload
+from cua.target_app.state import seed_members
 from tests.unit.domain.samples import observation
 
 
 def test_identity_summary_and_name_column_are_masked() -> None:
+    member = next(item for item in seed_members() if item.member_id == "10023")
     root = AxNode(
         role="document",
         name="",
         children=(
             AxNode(role="text", name="Name"),
-            AxNode(role="text", name="Randall Cook"),
+            AxNode(role="text", name=member.name),
             AxNode(role="text", name="Address"),
-            AxNode(role="text", name="9062 Gonzalez Extensions Port Maryport, UT 24002"),
+            AxNode(role="text", name=member.address),
             AxNode(
                 role="table",
                 name="Members",
@@ -34,10 +36,10 @@ def test_identity_summary_and_name_column_are_masked() -> None:
                     ),
                     AxNode(
                         role="row",
-                        name="10023 Randall Cook",
+                        name=f"{member.member_id} {member.name}",
                         children=(
-                            AxNode(role="cell", name="10023"),
-                            AxNode(role="cell", name="Randall Cook"),
+                            AxNode(role="cell", name=member.member_id),
+                            AxNode(role="cell", name=member.name),
                         ),
                     ),
                 ),
@@ -45,9 +47,10 @@ def test_identity_summary_and_name_column_are_masked() -> None:
         ),
     )
     encoded = json.dumps(redacted_ax_payload(root, "0" * 64))
-    assert "Randall Cook" not in encoded
-    assert "Gonzalez Extensions" not in encoded
-    assert "10023" in encoded
+    assert member.name not in encoded
+    assert member.address not in encoded
+    assert " ".join(member.address.split()) not in encoded
+    assert member.member_id in encoded
     marker_text = json.dumps(redacted_ax_payload(root, "0" * 64))
     assert '"redacted": true' in marker_text
     assert '"sha256"' in marker_text

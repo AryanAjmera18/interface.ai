@@ -7,7 +7,7 @@ push without force.
 
 | Part | Status | Completion commit | Open issues |
 |---|---|---|---|
-| 1. Manifests, demo index, dependency cleanup | in progress | — | Implement items 1.1–1.11; regenerate committed manifests from journals. |
+| 1. Manifests, demo index, dependency cleanup | done | d3f716a | Historical attempts 001–009 lack published blobs; attempt 010's old journal contains a raw synthetic balance. Both are documented, not rewritten. |
 | 2. Compiler, verification, approval | pending | — | — |
 | 3. Deterministic replay | pending | — | — |
 | 4. Escalation and handoff | pending | — | — |
@@ -24,3 +24,17 @@ push without force.
 - Never rewrite Git history or force-push.
 - Every scripted operator action must be labeled `scripted-operator` in journals and docs.
 - Early attempts 001–009 and their failure evidence remain intentionally preserved.
+
+
+## Part 1 verification
+
+- Implementation commit: `d3f716a`.
+- Full gate: 222 fast tests passed, 92% coverage, seven import contracts kept; lint,
+  format, and strict mypy passed.
+- Browser lane: 67 passed, two skipped (no external services).
+- Full-history scanner: five exact allowlisted findings, zero failures and zero tracked-file
+  failures.
+- Discovery manifests 002–010 were rebuilt from their hash-chained journals. Attempts 002–003
+  report null usage and cost. Attempt 001 has no manifest; its screenshot metadata was relabeled
+  through a journal event.
+- No live model run was made for Part 1; cumulative final-build live spend remains USD 0.00.

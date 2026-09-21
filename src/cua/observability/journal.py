@@ -92,10 +92,18 @@ class RunJournal:
     redactor output. Deserialized events never regain a trust tag just by claiming to be safe.
     """
 
-    def __init__(self, root: Path, run_id: str, *, clock: Clock, strict: bool = True) -> None:
+    def __init__(
+        self,
+        root: Path,
+        run_id: str,
+        *,
+        clock: Clock,
+        strict: bool = True,
+        directory: Path | None = None,
+    ) -> None:
         self.head = JournalHead(run_id=run_id, seq=0, hash=None)
         self.root, self.clock, self.strict = root, clock, strict
-        self.directory = root / self.head.run_id
+        self.directory = directory or root / self.head.run_id
         self.path = self.directory / "journal.ndjson"
         self.anchor = self.directory / "journal.head.json"
         self._mutex = threading.RLock()
@@ -125,7 +133,7 @@ class RunJournal:
 
     def verify_chain(self) -> ChainReport:
         with self._mutex:
-            return verify_chain(self.root, self.head.run_id)
+            return verify_chain_directory(self.directory, self.head.run_id)
 
     def record(self, event: JournalEvent) -> JournalRecord:
         validated = EVENTS.validate_json(event.model_dump_json())

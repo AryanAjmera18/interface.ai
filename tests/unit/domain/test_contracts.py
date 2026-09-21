@@ -198,7 +198,20 @@ def model_samples() -> list[v.DomainModel]:
             verified=True,
             checks=(ports.VerificationCheck(asserted="hash", found="hash", passed=True),),
         ),
-        ports.EvidencePayload(media_type="text/plain", content="synthetic"),
+        ports.EvidencePayload(media_type="text/plain", content=b"synthetic"),
+        ports.EvidenceRelabeled(
+            evidence_id=IDENTIFIER,
+            original_kind="ax_snapshot",
+            corrected_kind="screenshot",
+            original_media_type="image/png;base64;redaction=full-viewport",
+            corrected_media_type="image/png",
+            reason="Historical metadata was misclassified",
+        ),
+        ports.ManifestRegenerated(
+            attempt_directory="discovery-002",
+            reason="Correct unknown provider usage",
+        ),
+        ports.ProviderFailure(code="invalid_schema", safe_message="HTTP 400; invalid schema"),
         ports.ActionResult(
             attempted=a.Click(),
             before_hash=HASH,

@@ -21,7 +21,7 @@ from cua.observability.context import current_run, new_run, run_scope
 from cua.observability.evidence import EvidenceStore
 from cua.observability.journal import BrokenChainError, RunJournal
 from cua.observability.logging import StructuredLogger
-from cua.observability.manifest import write_manifest
+from cua.observability.manifest import ResultSummary, write_manifest
 from cua.observability.redaction import (
     RedactedBytes,
     RedactedValue,
@@ -207,7 +207,7 @@ def test_manifest_is_complete_and_golden(
             evidence=evidence,
             tracing=tracing,
             clock=FixedClock(),
-            inputs=redact({"member_id": "123-45-6789"}),
+            inputs=redact({"goal": "Synthetic replay", "parameters": []}),
             result_summary=redact({"status": "success"}),
         )
         assert manifest.chain.intact and manifest.evidence_verified
@@ -255,11 +255,133 @@ def test_cost_amendment_follows_terminal_event_and_drives_manifest(tmp_path: Pat
             evidence=evidence,
             tracing=tracing,
             clock=FixedClock(),
-            inputs=redact({}),
+            inputs=redact({"goal": "Synthetic replay", "parameters": []}),
             result_summary=redact({"status": "success"}),
         )
         assert manifest.cost_basis == "post_run"
-        assert manifest.model_usage.cost_usd == 0
+        assert manifest.model_usage.cost_usd is None
+        assert manifest.model_usage.input_tokens is None
+        assert manifest.model_usage.usage_basis == "unavailable"
         assert manifest.pricing[0].model_id == "gpt-6-astra"
+        evidence.close()
+        journal.close()
+
+
+def test_hard_failure_summary_requires_actionable_reason() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="failure_reason"):
+        ResultSummary(status="hard_failure", terminal_edge="surface_error")
+    accepted = ResultSummary(
+        status="hard_failure",
+        terminal_edge="surface_error",
+        failure_kind="surface_error",
+        failure_reason="Surface action failed",
+    )
+    assert accepted.failure_reason == "Surface action failed"
+
+
+def test_provider_rejection_manifest_is_golden(
+    tmp_path: Path, golden_file: Callable[[Path, bytes], bytes]
+) -> None:
+    context = new_run("discovery", clock=FixedClock(), ids=SequenceIds())
+    with run_scope(context):
+        ids = SequenceIds()
+        journal = RunJournal(tmp_path, context.run_id, clock=FixedClock())
+        evidence = EvidenceStore(tmp_path, context.run_id, clock=FixedClock(), ids=ids)
+        tracing = Tracing(tmp_path, clock=FixedClock(), ids=ids, remote=False)
+        journal.record(RunStarted(kind="discovery"))
+        journal.record(RunEnded(result="hard_failure", summary="provider_request_rejected"))
+        tracing.close()
+        manifest = write_manifest(
+            journal=journal,
+            evidence=evidence,
+            tracing=tracing,
+            clock=FixedClock(),
+            inputs=redact({"goal": "Synthetic lookup", "parameters": []}),
+            result_summary=redact({"status": "hard_failure"}),
+        )
+        assert manifest.model_usage.usage_basis == "unavailable"
+        assert manifest.model_usage.input_tokens is None
+        assert manifest.model_usage.cost_usd is None
+        assert manifest.result_summary.failure_reason == "provider_request_rejected"
+        golden_file(
+            Path("tests/golden/manifest.provider-rejection.json"),
+            (
+                json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
+            ).encode(),
+        )
+        evidence.close()
+        journal.close()
+
+
+def test_regeneration_rechecks_published_blobs_and_preserves_chain(tmp_path: Path) -> None:
+    from cua.domain.ports import ManifestRegenerated
+    from cua.observability.journal import verify_chain_directory
+    from cua.observability.manifest import regenerate_manifest_from_journal
+
+    context = new_run("discovery", clock=FixedClock(), ids=SequenceIds())
+    with run_scope(context):
+        ids = SequenceIds()
+        journal = RunJournal(tmp_path, context.run_id, clock=FixedClock())
+        evidence = EvidenceStore(tmp_path, context.run_id, clock=FixedClock(), ids=ids)
+        evidence.put(redact(b'{"safe":true}'), "application/json", kind="ax_snapshot")
+        tracing = Tracing(tmp_path, clock=FixedClock(), ids=ids, remote=False)
+        journal.record(RunStarted(kind="discovery"))
+        journal.record(RunEnded(result="success", summary="goal_reached"))
+        tracing.close()
+        original = write_manifest(
+            journal=journal,
+            evidence=evidence,
+            tracing=tracing,
+            clock=FixedClock(),
+            inputs=redact({"goal": "Synthetic lookup", "parameters": []}),
+            result_summary=redact({"status": "success"}),
+        )
+        assert original.evidence_verified
+        bundle = evidence.root
+        evidence.close()
+        journal.close()
+    resumed = RunJournal(tmp_path, context.run_id, clock=FixedClock(), directory=bundle)
+    resumed.record(
+        ManifestRegenerated(attempt_directory=bundle.name, reason="Check published evidence")
+    )
+    resumed.close()
+    rebuilt = regenerate_manifest_from_journal(bundle, published_blob_hashes=frozenset())
+    assert rebuilt.chain.intact and not rebuilt.evidence_verified
+    assert verify_chain_directory(bundle, context.run_id).intact
+
+
+def test_manifest_counts_policy_escalation_by_explicit_verdict(tmp_path: Path) -> None:
+    from cua.domain.ports import PolicyDecision
+
+    context = new_run("discovery", clock=FixedClock(), ids=SequenceIds())
+    with run_scope(context):
+        ids = SequenceIds()
+        journal = RunJournal(tmp_path, context.run_id, clock=FixedClock())
+        evidence = EvidenceStore(tmp_path, context.run_id, clock=FixedClock(), ids=ids)
+        tracing = Tracing(tmp_path, clock=FixedClock(), ids=ids, remote=False)
+        journal.record(RunStarted(kind="discovery"))
+        journal.record(
+            PolicyDecision(
+                observation_hash="a" * 64,
+                allowed=False,
+                verdict="escalate",
+                rule="risk.irreversible",
+                reason="Human confirmation required",
+            )
+        )
+        journal.record(RunEnded(result="hard_failure", summary="human_help_requested"))
+        tracing.close()
+        manifest = write_manifest(
+            journal=journal,
+            evidence=evidence,
+            tracing=tracing,
+            clock=FixedClock(),
+            inputs=redact({"goal": "Synthetic approval", "parameters": []}),
+            result_summary=redact({"status": "hard_failure"}),
+        )
+        assert manifest.policy_decisions.escalated == 1
+        assert manifest.policy_decisions.denied == 0
         evidence.close()
         journal.close()

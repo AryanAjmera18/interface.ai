@@ -470,3 +470,26 @@ async def test_tenant_ax_shapes_match_but_names_do_not(
         assert alpha.hash != beta.hash
     finally:
         await beta_surface.close()
+
+
+async def test_real_screenshot_masks_identity_region(
+    surface: PlaywrightWebSurface, tmp_path: Path
+) -> None:
+    from cua.observability.evidence import EvidenceStore, SurfaceEvidenceSink
+    from cua.observability.redaction import masked_ax_nodes
+
+    store = EvidenceStore(tmp_path / "evidence", "0" * 26, clock=FixedClock(), ids=SequenceIds())
+    surface._evidence = SurfaceEvidenceSink(store)
+    try:
+        await detail(surface)
+        observation = await surface.observe()
+        masked = masked_ax_nodes(observation.ax_root)
+        assert masked
+        assert all(node.bounds is not None for node in masked)
+        screenshots = [entry for entry in store.index.entries if entry.kind == "screenshot"]
+        assert len(screenshots) == 1
+        assert screenshots[0].observation_hash == observation.hash
+        assert screenshots[0].redaction == "region_masked"
+        assert screenshots[0].masked_regions
+    finally:
+        store.close()

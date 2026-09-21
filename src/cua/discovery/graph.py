@@ -40,7 +40,13 @@ from cua.domain.predicates import PredicateResult
 from cua.domain.steps import StepTiming
 from cua.observability.evidence import EvidenceStore
 from cua.observability.journal import RunJournal
-from cua.observability.redaction import redact, redacted_ax_payload
+from cua.observability.redaction import (
+    FieldRule,
+    RedactionPolicy,
+    redact,
+    redacted_ax_payload,
+    redaction_policy,
+)
 from cua.policy.engine import PolicyEngine
 from cua.policy.models import PolicyContext
 
@@ -70,6 +76,8 @@ class DiscoveryAgent:
             ),
             "application/json",
             kind="ax_snapshot",
+            observation_hash=observation.hash,
+            observation_id=observation.observation_id,
         )
         self._last_evidence = stored.to_artifact_ref()
         self.journal.record(
@@ -146,6 +154,7 @@ class DiscoveryAgent:
             PolicyEvent(
                 observation_hash=state.last_observation.hash,
                 allowed=decision.verdict == "allow",
+                verdict=decision.verdict,
                 rule=decision.rule_id,
                 reason=decision.reason,
             )
@@ -193,11 +202,18 @@ class DiscoveryAgent:
                 resolved.target if resolved else None,
                 timing=StepTiming(settle_strategy="ax_stable", timeout_ms=3000),
             )
-            self.journal.record(
-                ActionResultEvent(
-                    observation_hash=observation.hash, step_id=decision.decision_id, result=result
+            # ReadValue outputs are regulated account data even when they do not match a
+            # generic PII regex. The journal records a stable hash marker, never the value.
+            with redaction_policy(
+                RedactionPolicy(fields=(FieldRule(path="/result/value", sensitivity="pii"),))
+            ):
+                self.journal.record(
+                    ActionResultEvent(
+                        observation_hash=observation.hash,
+                        step_id=decision.decision_id,
+                        result=result,
+                    )
                 )
-            )
             return {"budget": state.budget.model_copy(update={"steps": state.budget.steps + 1})}
         except Exception:
             return self._terminal_update("surface_error", "Surface action failed")
@@ -218,6 +234,7 @@ class DiscoveryAgent:
                 PolicyEvent(
                     observation_hash=after.hash,
                     allowed=landed.verdict == "allow",
+                    verdict=landed.verdict,
                     rule=f"redirect.{landed.rule_id}",
                     reason=landed.reason,
                 )

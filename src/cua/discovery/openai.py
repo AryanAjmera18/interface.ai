@@ -5,6 +5,7 @@ and verification remain in this repository because replacing that loop would rep
 being evaluated rather than supply its model decision seam.
 """
 
+import asyncio
 import hashlib
 import os
 from time import monotonic
@@ -74,6 +75,18 @@ class _ErrorEnvelope(DomainModel):
     error: _ErrorDetail
 
 
+class ProviderResponseError(RuntimeError):
+    """Expose only typed safe provider metadata; response messages can echo secrets."""
+
+    def __init__(self, *, status: int, error_type: str, code: str | None) -> None:
+        self.status = status
+        self.error_type = error_type
+        self.code = code or "unknown"
+        super().__init__(
+            f"OpenAI Responses rejected request: status={status} type={error_type} code={self.code}"
+        )
+
+
 class OpenAILLMClient:
     """Call `/v1/responses` with the domain Action union embedded in a strict schema."""
 
@@ -83,10 +96,20 @@ class OpenAILLMClient:
         *,
         max_output_tokens: int = 2048,
         pricing: PricingEntry | None = None,
+        timeout_s: float = 120,
+        max_attempts: int = 3,
+        retry_backoff_s: float = 0.25,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
+        if max_attempts < 1 or timeout_s <= 0 or retry_backoff_s < 0:
+            raise ValueError("OpenAI timeout/retry settings are invalid")
         self.model_ref = model
         self.max_output_tokens = max_output_tokens
         self.pricing = pricing
+        self.timeout_s = timeout_s
+        self.max_attempts = max_attempts
+        self.retry_backoff_s = retry_backoff_s
+        self.transport = transport
 
     async def decide(self, request: DecisionRequest) -> DecisionResult:
         started = monotonic()
@@ -109,18 +132,22 @@ class OpenAILLMClient:
                 }
             },
         }
-        async with httpx.AsyncClient(timeout=120) as client:
-            raw = await client.post(
-                "https://api.openai.com/v1/responses",
-                headers={"Authorization": f"Bearer {key}"},
-                json=body,
-            )
+        async with httpx.AsyncClient(timeout=self.timeout_s, transport=self.transport) as client:
+            for attempt in range(self.max_attempts):
+                raw = await client.post(
+                    "https://api.openai.com/v1/responses",
+                    headers={"Authorization": f"Bearer {key}"},
+                    json=body,
+                )
+                if raw.status_code not in {429, 500, 502, 503, 504}:
+                    break
+                if attempt + 1 < self.max_attempts:
+                    await asyncio.sleep(self.retry_backoff_s * (2**attempt))
         if raw.is_error:
             envelope = _ErrorEnvelope.model_validate(raw.json())
             detail = envelope.error
-            raise RuntimeError(
-                f"OpenAI Responses rejected request: status={raw.status_code} "
-                f"type={detail.type} code={detail.code} param={detail.param}: {detail.message}"
+            raise ProviderResponseError(
+                status=raw.status_code, error_type=detail.type, code=detail.code
             )
         # The Responses transport adds fields over time. Select and validate the normalized
         # subset here; strictness still applies to the model-emitted PlannerOutput below.

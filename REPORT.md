@@ -12,3 +12,10 @@ human control transfer, safety guardrails, field provenance, and tamper-evident 
 - Prompt template v1 was edited in place during attempt 4. Attempt 010 remains reproducible, but
   attempts 001 through 009 lack both immutable historical template bytes and commit-safe AX inputs,
   so their prompt hashes cannot be independently re-rendered from this checkout.
+
+
+- The hand-built OpenAI httpx transport remains a cut. It now has an explicit timeout and bounded
+  429/5xx retries, but migrating to the official OpenAI SDK would reduce owned transport behavior.
+- Attempt 010's old journal includes a raw synthetic balance. New `ActionResult` writes use
+  the sensitivity-aware redaction choke point, but the old Git history cannot be retroactively
+  made private without a separately authorized history rewrite.

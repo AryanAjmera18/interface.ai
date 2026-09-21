@@ -12,19 +12,19 @@ from cua.discovery.anthropic import AnthropicLLMClient
 from cua.discovery.environment import load_environment
 from cua.discovery.fake import FakeLLMClient
 from cua.discovery.graph import DiscoveryAgent, build_graph, default_renderer
-from cua.discovery.openai import OpenAILLMClient
+from cua.discovery.openai import OpenAILLMClient, ProviderResponseError
 from cua.discovery.pricing import load_pricing
 from cua.discovery.state import DiscoveryState, InputBinding
 from cua.domain.common import LiteralRef, ParamRef, SecretRef, ValueRef
 from cua.domain.models import ModelProfile, ModelRegistry, ModelRole, fake_registry
-from cua.domain.ports import LLMClient, RunEnded
+from cua.domain.ports import LLMClient, ProviderFailure, RunEnded
 from cua.domain.provenance import ModelRef
 from cua.domain.schemas import public_schemas
 from cua.observability.context import new_run, run_scope
 from cua.observability.evidence import EvidenceStore, SurfaceEvidenceSink
 from cua.observability.journal import RunJournal
-from cua.observability.manifest import PricingEvidence, write_manifest
-from cua.observability.redaction import redact
+from cua.observability.manifest import ModelEntry, PricingEvidence, write_manifest
+from cua.observability.redaction import json_value, redact
 from cua.observability.tracing import Tracing
 from cua.policy.engine import PolicyEngine
 from cua.policy.models import PolicyConfig
@@ -225,7 +225,27 @@ async def _discover(goal: str, target: str, tenant: str, params: list[str]) -> N
                     terminal_status = DiscoveryState.model_validate(graph_result).status
             except Exception as exc:
                 failure = exc
-                journal.record(RunEnded(result="hard_failure", summary=type(exc).__name__))
+                provider_error = (
+                    ProviderFailure(
+                        code=exc.code,
+                        safe_message=(f"HTTP {exc.status}; provider type {exc.error_type}"),
+                    )
+                    if isinstance(exc, ProviderResponseError)
+                    else None
+                )
+                journal.record(
+                    RunEnded(
+                        result="hard_failure",
+                        summary="provider_error" if provider_error else type(exc).__name__,
+                        failure_kind=(
+                            "provider_request_rejected" if provider_error else type(exc).__name__
+                        ),
+                        failure_reason=(
+                            provider_error.safe_message if provider_error else type(exc).__name__
+                        ),
+                        provider_error=provider_error,
+                    )
+                )
             finally:
                 tracing.close()
                 write_manifest(
@@ -233,9 +253,32 @@ async def _discover(goal: str, target: str, tenant: str, params: list[str]) -> N
                     evidence=evidence,
                     tracing=tracing,
                     clock=clock,
-                    inputs=redact({item.name: item.value for item in bindings}),
+                    inputs=redact(
+                        {
+                            "goal": json_value(redact(goal, sensitivity="internal")),
+                            "parameters": [
+                                {
+                                    "name": item.name,
+                                    "value": json_value(
+                                        redact(item.value, sensitivity=item.sensitivity)
+                                    ),
+                                    "sensitivity": item.sensitivity,
+                                }
+                                for item in bindings
+                            ],
+                        }
+                    ),
                     result_summary=redact(
                         {"status": "hard_failure" if failure else terminal_status}
+                    ),
+                    models=(
+                        ModelEntry(
+                            role=profile.role.value,
+                            provider=profile.model.provider,
+                            model_id=profile.model.model_id,
+                            reasoning_effort=profile.model.reasoning_effort,
+                            source="configured",
+                        ),
                     ),
                     pricing=(
                         PricingEvidence(

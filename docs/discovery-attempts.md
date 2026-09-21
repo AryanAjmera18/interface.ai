@@ -28,3 +28,30 @@ hashes reproduce from the current v1 template and committed redacted AX blobs. A
 committed repository: their AX inputs are excluded for privacy, and the earlier bytes associated
 with the reused v1 identifier were not retained. Those historical decisions are therefore
 tamper-evident but not fully reproducible from this checkout.
+
+
+## Part 1 manifest correction and screenshot limit
+
+Each existing manifest (002–010) was regenerated from its verified journal after appending
+`EvidenceRelabeled` and `ManifestRegenerated` events. Attempt 001 had no manifest;
+its misfiled screenshot was relabeled with an `EvidenceRelabeled` event only. A later, separately journaled
+regeneration corrected `evidence_verified` to describe the **published** blobs: false for
+002–009 because their pre-mask blobs are excluded, true for 010. Attempts 002 and 003 have null
+token counts and null cost, since no provider usage event exists. The goal text in these amended
+manifests is labeled `reviewer_reconstruction` in the journal: it comes from the recorded task
+request, not a missing original `RunStarted` input field. Original parameter values are not
+recoverable and remain absent.
+
+All retained screenshots are legacy full-viewport black images, including discovery-010.
+Their index entries now identify them as `screenshot`, `image/png`, and
+`redaction=full_viewport`. No original pixels were recovered or recreated. New runs capture
+a screenshot at every observation, link it to the AX hash, and mask semantic sensitive regions.
+A masked AX node without bounds forces that one screenshot to full-viewport redaction.
+
+
+The original discovery-010 journal also contains a raw **synthetic** savings balance in its
+`ActionResult` event. That record cannot be edited without rewriting its hash chain and Git
+history. New discovery runs redact `ActionResult.result.value` by sensitivity before journal
+persistence, and a scripted-run regression test enforces the marker shape. The earlier raw
+value is a known historical privacy limitation, not evidence that the new path is safe for
+production financial data.

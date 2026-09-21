@@ -67,11 +67,12 @@ lease; Stage 9 must protect token ownership and approval identity.
 
 ## Evidence and verification
 
-DOM evidence is a digest of tag/child-count structure, never a persisted DOM dump. Screenshots
-are currently replaced with an entirely opaque PNG before the injected EvidenceSink receives
-them. This conservative default retains dimensions but offers no visual audit detail. Field-level
-redaction must be implemented before exporting useful screenshots. The default sink returns
-a digest reference and stores nothing; production evidence storage is a later stage.
+DOM evidence is a digest of tag/child-count structure, never a persisted DOM dump. Screenshots are taken for every recorded observation and pass through the injected evidence
+sink. The central redactor masks AX-identified identity regions using viewport bounds; if a
+masked node has no bounds, it blanks that screenshot and records the fallback reason. This is
+not OCR and does not prove that arbitrary pixels outside the AX tree are free of sensitive data.
+The default no-op sink retains nothing. Historical attempts 001–010 keep their original blank
+screenshots and are labeled accordingly in their indexes.
 
 `pytest tests/integration/surface` runs real Chromium against loopback servers. Install the pinned
 browser with `uv run playwright install chromium` first. The earlier CI tenant smoke job installs

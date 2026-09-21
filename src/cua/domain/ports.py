@@ -11,8 +11,9 @@ from cua.domain.capability import Capability, ExtractorSpec
 from cua.domain.common import ULID, Digest, DomainModel, EvidenceRef, ValueRef
 from cua.domain.locators import LocatorCandidate, LocatorLadder
 from cua.domain.models import DecisionRequest, DecisionResult, Usage
-from cua.domain.observation import Observation
+from cua.domain.observation import AxNode, Observation
 from cua.domain.predicates import AxTarget, PredicateResult
+from cua.domain.provenance import ModelRef
 from cua.domain.steps import StepTiming
 
 
@@ -22,10 +23,13 @@ class ExtractedValue(DomainModel):
 
 
 class EvidencePayload(DomainModel):
-    """Adapters must redact before constructing payloads; this type cannot certify redaction."""
+    """Raw image bytes cross this in-process port; the sink must redact before persistence."""
 
     media_type: str
-    content: str
+    content: bytes
+    observation_hash: Digest | None = None
+    observation_id: ULID | None = None
+    ax_root: AxNode | None = None
 
 
 class Surface(Protocol):
@@ -117,7 +121,11 @@ class Extractor(Protocol):
     def extract(self, spec: ExtractorSpec, observation: Observation) -> ExtractedValue: ...
 
 
+NodeAddress = tuple[tuple[str, ...], tuple[int, ...]]
+
+
 class EvidenceSink(Protocol):
+    def sensitive_bounds_targets(self, root: AxNode) -> tuple[NodeAddress, ...]: ...
     async def put(self, payload: EvidencePayload) -> EvidenceRef: ...
     def verify(self, reference: EvidenceRef) -> bool: ...
 
@@ -191,6 +199,7 @@ class PolicyDecision(PageEvent):
     allowed: bool
     rule: str
     reason: str
+    verdict: Literal["allow", "deny", "escalate"] | None = None
 
 
 class ActionAttempted(PageEvent):
@@ -281,10 +290,42 @@ class CostAmended(DomainModel):
     reason: Literal["pricing entry filled after the run"]
 
 
+class EvidenceRelabeled(DomainModel):
+    """Metadata correction is visible history; immutable blob bytes and hashes stay unchanged."""
+
+    type: Literal["EvidenceRelabeled"] = "EvidenceRelabeled"
+    evidence_id: ULID
+    original_kind: str
+    corrected_kind: str
+    original_media_type: str
+    corrected_media_type: str
+    reason: str
+
+
+class ManifestRegenerated(DomainModel):
+    """Reconstruction is appended after the original result, never a silent rewrite."""
+
+    type: Literal["ManifestRegenerated"] = "ManifestRegenerated"
+    attempt_directory: str
+    reason: str
+    goal: str | None = None
+    goal_source: Literal["journal", "reviewer_reconstruction", "unavailable"] = "unavailable"
+    configured_model: ModelRef | None = None
+
+
+class ProviderFailure(DomainModel):
+    code: str
+    safe_message: str
+
+
 class RunEnded(DomainModel):
     type: Literal["RunEnded"] = "RunEnded"
     result: Literal["success", "business", "hard_failure", "cancelled"]
     summary: str
+    failure_kind: str | None = None
+    failure_reason: str | None = None
+    failure_step: str | None = None
+    provider_error: ProviderFailure | None = None
 
 
 JournalEvent = Annotated[
@@ -304,6 +345,8 @@ JournalEvent = Annotated[
     | ControlReturned
     | CapabilityCompiled
     | CostAmended
+    | EvidenceRelabeled
+    | ManifestRegenerated
     | RunEnded,
     Field(discriminator="type"),
 ]

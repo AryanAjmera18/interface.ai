@@ -8,7 +8,7 @@
   },
   "context": {
     "capability_ref": null,
-    "kind": "replay",
+    "kind": "discovery",
     "parent_run_id": null,
     "run_id": "00000000000000000000000001",
     "started_at": "2026-01-15T00:00:00Z",
@@ -24,10 +24,10 @@
   },
   "evidence_verified": true,
   "inputs": {
-    "goal": "Synthetic replay",
+    "goal": "Synthetic lookup",
     "parameters": []
   },
-  "journal_head_hash": "1192250cee65fe5707af0cc4c32ca8d5570ad5e54899a7d6b77ad41d55556890",
+  "journal_head_hash": "10c1bf92d094ecb7030f0d50f6caeacda9af50c295f4113bf6544ea7dde14028",
   "model_usage": {
     "cached_input_tokens": null,
     "cost_usd": null,
@@ -44,13 +44,13 @@
   },
   "pricing": [],
   "result_summary": {
-    "failure_kind": null,
-    "failure_reason": null,
+    "failure_kind": "provider_request_rejected",
+    "failure_reason": "provider_request_rejected",
     "failure_step": null,
     "outputs": [],
     "provider_error": null,
-    "status": "success",
-    "terminal_edge": "completed"
+    "status": "hard_failure",
+    "terminal_edge": "provider_request_rejected"
   },
   "span_export_failures": 0,
   "span_file": "spans.otlp.jsonl"

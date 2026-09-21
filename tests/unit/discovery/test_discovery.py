@@ -165,6 +165,9 @@ async def test_happy_path_and_compiler_checklist(tmp_path: Path) -> None:
         key in attempt.payload
         for key in ("observation_hash", "intent", "action", "target", "locator_ladder")
     )
+    action_result = next(record for record in records if record.type == "ActionResult")
+    assert action_result.payload["result"]["value"]["redacted"] is True
+    assert "123.45" not in journal.path.read_text(encoding="utf-8")
     journal.close()
 
 

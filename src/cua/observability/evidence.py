@@ -1,6 +1,5 @@
 """Persist redacted content-addressed evidence; forbid surface and higher-layer imports."""
 
-import base64
 import hashlib
 import threading
 from pathlib import Path
@@ -9,9 +8,16 @@ from typing import Literal
 from pydantic import AwareDatetime, Field
 
 from cua.domain.common import ULID, Digest, DomainModel, EvidenceRef, canonical_json
-from cua.domain.ports import Clock, EvidencePayload, IdGenerator
+from cua.domain.observation import AxNode, Bounds
+from cua.domain.ports import Clock, EvidencePayload, IdGenerator, NodeAddress
 from cua.observability._io import WriterLock, write_bytes
-from cua.observability.redaction import RedactedBytes, redact, require_tag
+from cua.observability.redaction import (
+    RedactedBytes,
+    masked_ax_nodes,
+    redact,
+    redact_screenshot,
+    require_tag,
+)
 
 EvidenceKind = Literal[
     "screenshot", "ax_snapshot", "dom_digest", "network_summary", "operator_note"
@@ -31,6 +37,11 @@ class StoredEvidenceRef(DomainModel):
     kind: EvidenceKind
     stored_at: AwareDatetime
     evidence_id: ULID
+    redaction: Literal["none", "region_masked", "full_viewport"] = "none"
+    masked_regions: tuple[Bounds, ...] = ()
+    redaction_reason: str | None = None
+    observation_hash: Digest | None = None
+    observation_id: ULID | None = None
 
     def to_artifact_ref(self) -> EvidenceRef:
         return EvidenceRef(
@@ -69,21 +80,42 @@ class EvidenceStore:
         self._lock.close()
 
     def put(
-        self, payload: RedactedBytes, media_type: str, *, kind: EvidenceKind
+        self,
+        payload: RedactedBytes,
+        media_type: str,
+        *,
+        kind: EvidenceKind,
+        redaction: Literal["none", "region_masked", "full_viewport"] = "none",
+        masked_regions: tuple[Bounds, ...] = (),
+        redaction_reason: str | None = None,
+        observation_hash: Digest | None = None,
+        observation_id: ULID | None = None,
     ) -> StoredEvidenceRef:
         if not self.strict and isinstance(payload, bytes):
             payload = redact(payload)
         require_tag(payload)
         if not isinstance(payload, RedactedBytes):
             raise TypeError("Evidence requires redact(bytes)")
+        media_type = payload.media_type_hint or media_type
+        if (
+            ";" in media_type
+            or (kind == "screenshot" and not media_type.startswith("image/"))
+            or (kind == "ax_snapshot" and media_type != "application/json")
+        ):
+            raise ValueError(f"Evidence media type {media_type!r} is invalid for {kind}")
         with self._mutex:
             if self._lock.stream.closed:
                 raise RuntimeError("Evidence store is closed")
             sha = hashlib.sha256(payload.value).hexdigest()
-            media_type = payload.media_type_hint or media_type
             # Identical bytes with distinct purpose retain index entries but share one blob.
             for entry in self.index.entries:
-                if (entry.sha256, entry.media_type, entry.kind) == (sha, media_type, kind):
+                if (
+                    entry.sha256,
+                    entry.media_type,
+                    entry.kind,
+                    entry.observation_hash,
+                    entry.observation_id,
+                ) == (sha, media_type, kind, observation_hash, observation_id):
                     if not self.verify(entry):
                         raise ValueError(
                             "Existing evidence is corrupt; preserve it for investigation"
@@ -96,6 +128,11 @@ class EvidenceStore:
                 kind=kind,
                 stored_at=self.clock.now(),
                 evidence_id=self.ids.new(),
+                redaction=redaction,
+                masked_regions=masked_regions,
+                redaction_reason=redaction_reason,
+                observation_hash=observation_hash,
+                observation_id=observation_id,
             )
             blob = self._path(reference)
             if blob.exists() and hashlib.sha256(blob.read_bytes()).hexdigest() != sha:
@@ -142,22 +179,35 @@ class EvidenceStore:
 
 
 class SurfaceEvidenceSink:
-    """Adapt the existing injected surface port; raw content is sanitized at this gateway.
-
-    PNGs are masked again centrally, even if an adapter claims it already masked them. This
-    intentionally sacrifices screenshot detail until a reviewed region-aware redactor exists.
-    """
+    """Redact in-process screenshot bytes before the content-addressed store sees them."""
 
     def __init__(self, store: EvidenceStore) -> None:
         self.store = store
 
+    def sensitive_bounds_targets(self, root: AxNode) -> tuple[NodeAddress, ...]:
+        return tuple((node.frame_path, node.node_path) for node in masked_ax_nodes(root))
+
     async def put(self, payload: EvidencePayload) -> EvidenceRef:
-        image = payload.media_type == "image/png"
-        data = (
-            base64.b64decode(payload.content, validate=True) if image else payload.content.encode()
-        )
+        if payload.media_type == "image/png":
+            if payload.ax_root is None or payload.observation_hash is None:
+                raise ValueError("Screenshot needs the AX tree and observation hash")
+            safe, mode, regions, reason = redact_screenshot(payload.content, payload.ax_root)
+            return self.store.put(
+                safe,
+                "image/png",
+                kind="screenshot",
+                redaction=mode,
+                masked_regions=regions,
+                redaction_reason=reason,
+                observation_hash=payload.observation_hash,
+                observation_id=payload.observation_id,
+            ).to_artifact_ref()
         return self.store.put(
-            redact(data), payload.media_type, kind="screenshot" if image else "ax_snapshot"
+            redact(payload.content),
+            payload.media_type,
+            kind="ax_snapshot",
+            observation_hash=payload.observation_hash,
+            observation_id=payload.observation_id,
         ).to_artifact_ref()
 
     def verify(self, reference: EvidenceRef) -> bool:

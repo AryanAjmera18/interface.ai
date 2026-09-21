@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import io
 import json
 import re
 import struct
@@ -12,11 +13,12 @@ from contextvars import ContextVar
 from fnmatch import fnmatchcase
 from typing import Literal, cast, overload
 
+from PIL import Image, ImageDraw
 from pydantic import BaseModel, JsonValue, PrivateAttr, field_serializer
 
 from cua.domain.capability import OutputSpec, ParamSpec
 from cua.domain.common import Digest, DomainModel, Sensitivity, canonical_json
-from cua.domain.observation import AxNode
+from cua.domain.observation import AxNode, Bounds
 
 _TOKEN = object()
 
@@ -323,6 +325,79 @@ def redact_ax_for_prompt(root: AxNode) -> AxNode:
 def redacted_ax_payload(root: AxNode, observation_hash: str) -> JsonValue:
     """Persist a standard-marker AX projection plus its raw observation's canonical identity."""
     return {"observation_hash": observation_hash, "ax_root": redact_ax_tree(root)}
+
+
+def masked_ax_nodes(root: AxNode) -> tuple[AxNode, ...]:
+    """Return nodes whose fields the single AX redaction profile actually masks."""
+    projection = redact_ax_tree(root)
+    selected: list[AxNode] = []
+
+    def visit(node: AxNode, safe: JsonValue) -> None:
+        if not isinstance(safe, dict):
+            raise ValueError("AX redaction projection is malformed")
+        if any(
+            isinstance(value, dict) and value.get("redacted") is True
+            for value in (safe.get(field) for field in ("name", "value", "description"))
+        ):
+            selected.append(node)
+        children = safe.get("children")
+        if not isinstance(children, list) or len(children) != len(node.children):
+            raise ValueError("AX redaction projection does not match source")
+        for child, projected in zip(node.children, children, strict=True):
+            visit(child, projected)
+
+    visit(root, projection)
+    return tuple(selected)
+
+
+def redact_screenshot(
+    png: bytes, root: AxNode
+) -> tuple[
+    RedactedBytes,
+    Literal["none", "region_masked", "full_viewport"],
+    tuple[Bounds, ...],
+    str | None,
+]:
+    """Mask semantic AX fields at their screen bounds; missing bounds fail closed.
+
+    OCR was rejected because it cannot prove that every sensitive token was found. When the
+    AX redactor marks a field without bounds, the whole viewport is blacked out and the reason
+    is carried in evidence metadata. The original image is never written to disk.
+    """
+    if not png.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("Screenshot transport must be PNG")
+    masked_nodes = masked_ax_nodes(root)
+    regions = [node.bounds for node in masked_nodes if node.bounds is not None]
+    missing_bounds = any(node.bounds is None for node in masked_nodes)
+    with Image.open(io.BytesIO(png)) as opened:
+        if opened.width * opened.height > 40_000_000:
+            raise ValueError("PNG dimensions exceed the redaction budget")
+        image = opened.convert("RGB")
+    if missing_bounds:
+        image.paste((0, 0, 0), (0, 0, image.width, image.height))
+        mode: Literal["none", "region_masked", "full_viewport"] = "full_viewport"
+        reason = "masked AX node lacked bounds"
+        regions = []
+    elif regions:
+        draw = ImageDraw.Draw(image)
+        for bounds in regions:
+            draw.rectangle(
+                (bounds.x, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h),
+                fill=(0, 0, 0),
+            )
+        mode = "region_masked"
+        reason = None
+    else:
+        mode = "none"
+        reason = None
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return (
+        _stamp(RedactedBytes(value=output.getvalue(), media_type_hint="image/png")),
+        mode,
+        tuple(regions),
+        reason,
+    )
 
 
 def _opaque_png(value: bytes) -> bytes:

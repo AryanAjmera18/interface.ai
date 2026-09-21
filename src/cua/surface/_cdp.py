@@ -5,7 +5,7 @@ from typing import Any, cast
 from playwright.async_api import BrowserContext, CDPSession, Error, Frame, Page
 from pydantic import BaseModel, ConfigDict, Field
 
-from cua.domain.observation import AxState, FrameInfo
+from cua.domain.observation import AxNode, AxState, Bounds, FrameInfo
 from cua.surface.base import BackendNode, FrameSnapshot, NodeBinding, normalize_tree
 
 
@@ -146,6 +146,44 @@ async def capture_frames(context: BrowserContext, page: Page, cdp: CDPSession) -
         await capture.close()
         raise
     return capture
+
+
+async def attach_mask_bounds(
+    capture: FrameCapture,
+    targets: tuple[tuple[tuple[str, ...], tuple[int, ...]], ...],
+) -> None:
+    """Query only redactor-selected nodes; Playwright maps nested frames to viewport boxes.
+
+    Querying every AX backend node caused hundreds of missing-element timeouts. A missing
+    target box remains None so the evidence sink blacks out that entire screenshot.
+    """
+    positions: dict[tuple[tuple[str, ...], tuple[int, ...]], Bounds] = {}
+    for frame_path, node_path in targets:
+        binding = capture.bindings.get((frame_path, node_path))
+        if binding is None or binding.backend_id is None:
+            continue
+        try:
+            selector = await backend_selector(capture.sessions[frame_path], binding.backend_id)
+            box = await capture.frames[frame_path].locator(selector).bounding_box(timeout=200)
+        except (Error, RuntimeError):
+            continue
+        if box is not None:
+            positions[(frame_path, node_path)] = Bounds(
+                x=box["x"], y=box["y"], w=box["width"], h=box["height"]
+            )
+
+    def attach(node: AxNode) -> AxNode:
+        return node.model_copy(
+            update={
+                "bounds": positions.get((node.frame_path, node.node_path)),
+                "children": tuple(attach(child) for child in node.children),
+            }
+        )
+
+    capture.snapshots = [
+        snapshot.model_copy(update={"root": attach(snapshot.root)})
+        for snapshot in capture.snapshots
+    ]
 
 
 SELECTOR_FUNCTION = """function() {

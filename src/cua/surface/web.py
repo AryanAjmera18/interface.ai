@@ -10,7 +10,6 @@ and chromedevtools.github.io/devtools-protocol/tot/Accessibility/#method-getFull
 """
 
 import asyncio
-import base64
 import hashlib
 import socket
 import struct
@@ -57,7 +56,7 @@ from cua.domain.locators import (
     VisibleTextCandidate,
     stability_key,
 )
-from cua.domain.observation import AxNode, Observation, SurfaceFingerprint, walk_ax
+from cua.domain.observation import AxNode, Observation, SurfaceFingerprint, ax_digest, walk_ax
 from cua.domain.ports import (
     ActionResult,
     CandidateAttempt,
@@ -66,6 +65,7 @@ from cua.domain.ports import (
     EvidencePayload,
     EvidenceSink,
     IdGenerator,
+    NodeAddress,
     Resolution,
     ResolvedTarget,
     SettleFailure,
@@ -74,16 +74,21 @@ from cua.domain.ports import (
 )
 from cua.domain.predicates import AmbiguousTargetError, AxTarget, evaluate
 from cua.domain.steps import StepTiming
-from cua.surface._cdp import FrameCapture, accessible_element, backend_selector, capture_frames
+from cua.surface._cdp import (
+    FrameCapture,
+    accessible_element,
+    attach_mask_bounds,
+    backend_selector,
+    capture_frames,
+)
 from cua.surface.base import merge_frames, tree_diff
 
 
 def opaque_screenshot(png: bytes) -> bytes:
-    """Fail closed until field redaction exists: retain only dimensions, replace EVERY pixel.
+    """Keep a tested legacy full-viewport encoder for old evidence compatibility.
 
-    Merely masking html can miss fixed elements outside its box. Re-encoding an opaque PNG
-    avoids acquiring a misleading partial-redaction promise and strips all ancillary metadata.
-    Raw screenshot bytes never reach EvidenceSink, files, logs, traces or exporter callbacks.
+    New screenshots use observability's region mask. This helper remains for verifying
+    historical blank-image semantics and is not used by the browser adapter.
     """
     if png[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("Screenshot transport must be PNG")
@@ -114,6 +119,9 @@ class WebConfig(DomainModel):
 class NoopEvidenceSink:
     """Return content identity without writing data; a durable redacted store comes later."""
 
+    def sensitive_bounds_targets(self, root: AxNode) -> tuple[NodeAddress, ...]:
+        return ()
+
     def __init__(self, ids: IdGenerator) -> None:
         self._ids = ids
 
@@ -121,7 +129,7 @@ class NoopEvidenceSink:
         return EvidenceRef(
             evidence_id=self._ids.new(),
             media_type=payload.media_type,
-            content_hash=hashlib.sha256(payload.content.encode()).hexdigest(),
+            content_hash=hashlib.sha256(payload.content).hexdigest(),
         )
 
     def verify(self, reference: EvidenceRef) -> bool:
@@ -260,6 +268,10 @@ class PlaywrightWebSurface:
         capture = capture or await capture_frames(self._context, self._page, self._cdp)
         try:
             tree = merge_frames(tuple(capture.snapshots))
+            if evidence:
+                targets = self._evidence.sensitive_bounds_targets(tree)
+                await attach_mask_bounds(capture, targets)
+                tree = merge_frames(tuple(capture.snapshots))
             # Read tag structure only, never persist full DOM/text/attribute values.
             structures = [
                 await frame.evaluate(
@@ -280,21 +292,22 @@ class PlaywrightWebSurface:
                 "observed_at": self._clock.now(),
             }
         )
+        observation_id = self._ids.new()
         screenshot_ref = None
         if evidence:
-            # Until observability.redaction exists, capture ONLY a fully masked viewport. No raw
-            # screenshot is acquired/exported; partial PII masking would be an unjustified promise.
-            masked = await self._page.screenshot(
-                mask=[self._page.locator("html")], mask_color="#000000", animations="disabled"
-            )
+            # The sink owns masking; never write or export these transient raw bytes here.
+            screenshot = await self._page.screenshot(animations="disabled")
             screenshot_ref = await self._evidence.put(
                 EvidencePayload(
-                    media_type="image/png;base64;redaction=full-viewport",
-                    content=base64.b64encode(opaque_screenshot(masked)).decode("ascii"),
+                    media_type="image/png",
+                    content=screenshot,
+                    observation_hash=ax_digest(tree),
+                    observation_id=observation_id,
+                    ax_root=tree,
                 )
             )
         result = Observation(
-            observation_id=self._ids.new(),
+            observation_id=observation_id,
             captured_at=self._clock.now(),
             surface_kind="web",
             url=self._page.url,

@@ -6,7 +6,7 @@ marked **done** only when its linked bundle exists and its journal verifies.
 | Scenario | Status | Evidence |
 |---|---|---|
 | 1. Discovery: real model learns savings lookup | Done | [discovery-010 manifest](../discovery-010/manifest.json), [journal](../discovery-010/journal.ndjson), [AX and screenshot index](../discovery-010/index.json) |
-| 2. Compile: journal becomes capability | Pending | Part 2 |
+| 2. Compile: journal becomes capability | Done | [approved artifact](../../capabilities/look_up_member_savings_balance@1.0.0.json), [comparison](../../docs/compiler-vs-handwritten.md) |
 | 3. Replay success without a model | Pending | Part 3 |
 | 4. Replay business outcome: member not found | Pending | Part 3 |
 | 5. Replay recovery: dismiss interstitial | Pending | Part 3 |
@@ -37,3 +37,6 @@ uv run --locked python -c "import json,hashlib; from pathlib import Path; from c
 
 The historical screenshot is a blank full-viewport PNG. Its `redaction` metadata says so;
 region-masked screenshots apply only to runs recorded after the Part 1 implementation.
+
+Scenario 2 compiles to six steps and verifies every observation and evidence digest. Run `uv run cua verify capabilities/look_up_member_savings_balance@1.0.0.json` from the repository root.
+

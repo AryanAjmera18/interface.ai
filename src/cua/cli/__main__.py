@@ -303,5 +303,133 @@ async def _discover(goal: str, target: str, tenant: str, params: list[str]) -> N
     typer.echo(f"manifest={root / 'manifest.json'}")
 
 
+def _run_directory(run_id: str, root: Path = Path("evidence")) -> Path:
+    for journal in root.glob("*/journal.ndjson"):
+        first = journal.read_text(encoding="utf-8").splitlines()[0]
+        if f'"run_id":"{run_id}"' in first:
+            return journal.parent
+    raise typer.BadParameter(f"No evidence run found for {run_id}")
+
+
+@app.command("compile")
+def compile_capability(
+    run_dir: Path,
+    output: Annotated[Path, typer.Option("-o", "--output")],
+) -> None:
+    """Deterministically derive a draft capability from recorded evidence."""
+    from cua.discovery.compiler import capability_bytes, compile_run
+    from cua.domain.capability import capability_content_digest
+    from cua.domain.ports import CapabilityCompiled
+
+    capability = compile_run(run_dir)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(capability_bytes(capability))
+    journal = RunJournal(
+        run_dir.parent,
+        capability.provenance.derived_from_run_id,
+        clock=SystemClock(),
+        directory=run_dir,
+    )
+    try:
+        journal.record(
+            CapabilityCompiled(
+                capability_id=capability.capability_id,
+                content_digest=capability_content_digest(capability),
+            )
+        )
+    finally:
+        journal.close()
+    typer.echo(str(output))
+
+
+@app.command("verify")
+def verify_capability(artifact: Path) -> None:
+    from cua.discovery.verifier import RunProvenanceVerifier
+    from cua.domain.capability import Capability
+
+    capability = Capability.model_validate_json(artifact.read_bytes())
+    report = RunProvenanceVerifier(
+        _run_directory(capability.provenance.derived_from_run_id)
+    ).verify(capability)
+    for check in report.checks:
+        typer.echo(f"{'PASS' if check.passed else 'FAIL'} {check.asserted}: {check.found}")
+    if not report.verified:
+        raise typer.Exit(1)
+
+
+@app.command("approve")
+def approve_capability(
+    artifact: Path,
+    actor: Annotated[str, typer.Option()],
+    reason: Annotated[str, typer.Option()],
+) -> None:
+    from cua.discovery.compiler import capability_bytes
+    from cua.domain.capability import Capability, capability_content_digest
+    from cua.domain.ports import CapabilityApproved
+    from cua.domain.provenance import ApprovalRecord
+
+    capability = Capability.model_validate_json(artifact.read_bytes())
+    reviewed = capability_content_digest(capability)
+    approved = capability.model_copy(
+        update={
+            "status": "approved",
+            "provenance": capability.provenance.model_copy(
+                update={
+                    "approval": ApprovalRecord(
+                        actor=actor,
+                        at=SystemClock().now(),
+                        reviewed_digest=reviewed,
+                        reason=reason,
+                    )
+                }
+            ),
+        }
+    )
+    approved = Capability.model_validate(approved.model_dump(mode="json"))
+    run_dir = _run_directory(capability.provenance.derived_from_run_id)
+    journal = RunJournal(
+        run_dir.parent,
+        capability.provenance.derived_from_run_id,
+        clock=SystemClock(),
+        directory=run_dir,
+    )
+    try:
+        journal.record(
+            CapabilityApproved(
+                capability_id=capability.capability_id,
+                actor=actor,
+                reason=reason,
+                reviewed_digest=reviewed,
+            )
+        )
+    finally:
+        journal.close()
+    artifact.write_bytes(capability_bytes(approved))
+    typer.echo(f"approved {artifact} digest={reviewed}")
+
+
+@app.command("diff")
+def diff_capabilities(left: Path, right: Path) -> None:
+    """Print semantic changes instead of a formatting-sensitive JSON diff."""
+    from cua.domain.capability import Capability, capability_content_digest
+
+    before = Capability.model_validate_json(left.read_bytes())
+    after = Capability.model_validate_json(right.read_bytes())
+    typer.echo(f"status: {before.status} -> {after.status}")
+    typer.echo(f"steps: {len(before.steps)} -> {len(after.steps)}")
+    for old, new in zip(before.steps, after.steps, strict=False):
+        if old != new:
+            old_count = len(old.target.candidates) if old.target else 0
+            new_count = len(new.target.candidates) if new.target else 0
+            typer.echo(
+                f"step {old.ordinal}: {old.action.kind}/{old_count} -> "
+                f"{new.action.kind}/{new_count} locators"
+            )
+    typer.echo(f"outcomes: {len(before.outcomes)} -> {len(after.outcomes)}")
+    typer.echo(
+        f"content_digest: {capability_content_digest(before)} -> {capability_content_digest(after)}"
+    )
+
+
 if __name__ == "__main__":
     app()

@@ -153,7 +153,15 @@ def write_manifest(
     if chain.intact and terminal is None:
         raise RuntimeError("Record RunEnded before writing the manifest")
     if terminal is not None and any(
-        record.type not in {"CostAmended", "EvidenceRelabeled", "ManifestRegenerated"}
+        record.type
+        not in {
+            "CostAmended",
+            "EvidenceRelabeled",
+            "TargetMetadataReconstructed",
+            "ManifestRegenerated",
+            "CapabilityCompiled",
+            "CapabilityApproved",
+        }
         for record in records[terminal + 1 :]
     ):
         raise RuntimeError("Only named amendment events may follow RunEnded")

@@ -11,7 +11,7 @@ from cua.domain.capability import Capability, ExtractorSpec
 from cua.domain.common import ULID, Digest, DomainModel, EvidenceRef, ValueRef
 from cua.domain.locators import LocatorCandidate, LocatorLadder
 from cua.domain.models import DecisionRequest, DecisionResult, Usage
-from cua.domain.observation import AxNode, Observation
+from cua.domain.observation import AxNode, Observation, SurfaceFingerprint
 from cua.domain.predicates import AxTarget, PredicateResult
 from cua.domain.provenance import ModelRef
 from cua.domain.steps import StepTiming
@@ -187,6 +187,9 @@ class Observed(PageEvent):
     type: Literal["Observed"] = "Observed"
     observation_id: ULID
     evidence_ref: EvidenceRef
+    fingerprint: SurfaceFingerprint | None = None
+    url: str | None = None
+    title: str | None = None
 
 
 class ModelDecided(PageEvent):
@@ -274,6 +277,16 @@ class CapabilityCompiled(DomainModel):
     content_digest: Digest
 
 
+class CapabilityApproved(DomainModel):
+    """Bind a named review act to the exact canonical content reviewed."""
+
+    type: Literal["CapabilityApproved"] = "CapabilityApproved"
+    capability_id: ULID
+    actor: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    reviewed_digest: Digest
+
+
 class CostAmended(DomainModel):
     """Record a post-run price without rewriting the usage events that existed at execution."""
 
@@ -299,6 +312,17 @@ class EvidenceRelabeled(DomainModel):
     corrected_kind: str
     original_media_type: str
     corrected_media_type: str
+    reason: str
+
+
+class TargetMetadataReconstructed(DomainModel):
+    """Post-run fixture metadata is labeled reconstruction, never a recorded observation."""
+
+    type: Literal["TargetMetadataReconstructed"] = "TargetMetadataReconstructed"
+    fingerprint: SurfaceFingerprint
+    entry_point: str
+    source_commit: str
+    source: Literal["target_app_config"] = "target_app_config"
     reason: str
 
 
@@ -344,8 +368,10 @@ JournalEvent = Annotated[
     | HumanAction
     | ControlReturned
     | CapabilityCompiled
+    | CapabilityApproved
     | CostAmended
     | EvidenceRelabeled
+    | TargetMetadataReconstructed
     | ManifestRegenerated
     | RunEnded,
     Field(discriminator="type"),

@@ -212,6 +212,12 @@ def model_samples() -> list[v.DomainModel]:
             reason="Correct unknown provider usage",
         ),
         ports.ProviderFailure(code="invalid_schema", safe_message="HTTP 400; invalid schema"),
+        ports.TargetMetadataReconstructed(
+            fingerprint=obs.fingerprint,
+            entry_point="http://127.0.0.1:8099/t/alpha/",
+            source_commit="fixture-revision",
+            reason="Original journal lacked target metadata",
+        ),
         ports.ActionResult(
             attempted=a.Click(),
             before_hash=HASH,
@@ -287,6 +293,12 @@ def model_samples() -> list[v.DomainModel]:
         ports.HumanAction(observation_hash=HASH, actor="reviewer", action=a.Click()),
         ports.ControlReturned(observation_hash=HASH, actor="reviewer"),
         ports.CapabilityCompiled(capability_id=cap.capability_id, content_digest=HASH),
+        ports.CapabilityApproved(
+            capability_id=cap.capability_id,
+            actor="Aryan Ajmera (reviewer)",
+            reason="Reviewed",
+            reviewed_digest=HASH,
+        ),
         ports.CostAmended(
             provider="openai",
             model_id="gpt-6-astra",

@@ -8,7 +8,7 @@ push without force.
 | Part | Status | Completion commit | Open issues |
 |---|---|---|---|
 | 1. Manifests, demo index, dependency cleanup | done | d3f716a | Historical attempts 001–009 lack published blobs; attempt 010's old journal contains a raw synthetic balance. Both are documented, not rewritten. |
-| 2. Compiler, verification, approval | pending | — | — |
+| 2. Compiler, verification, approval | in progress | — | discovery-010 did not journal URL/fingerprint; record a labeled reconstruction before compilation. |
 | 3. Deterministic replay | pending | — | — |
 | 4. Escalation and handoff | pending | — | — |
 | 5. Stretch goals | pending | — | Exactly two: cross-tenant reuse and agent-facing catalog. |

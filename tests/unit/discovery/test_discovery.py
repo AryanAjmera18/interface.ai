@@ -160,6 +160,9 @@ async def test_happy_path_and_compiler_checklist(tmp_path: Path) -> None:
         "CheckpointEvaluated",
         "RunEnded",
     }
+    observed_record = next(record for record in records if record.type == "Observed")
+    assert observed_record.payload["fingerprint"]["tenant_id"] == "alpha"
+    assert observed_record.payload["url"] == obs.url
     attempt = next(record for record in records if record.type == "ActionAttempted")
     assert all(
         key in attempt.payload

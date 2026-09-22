@@ -85,6 +85,9 @@ class DiscoveryAgent:
                 observation_hash=observation.hash,
                 observation_id=observation.observation_id,
                 evidence_ref=self._last_evidence,
+                fingerprint=observation.fingerprint,
+                url=observation.url,
+                title=observation.title,
             )
         )
 

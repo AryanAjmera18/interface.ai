@@ -1,0 +1,1437 @@
+{
+  "capability_id": "01M2YKF25VVM1RVNVNV97TG07H",
+  "description": "Look up a synthetic member and read the current savings balance",
+  "inputs": [
+    {
+      "default": null,
+      "description": "Synthetic login binding",
+      "example": null,
+      "json_type": "string",
+      "name": "username",
+      "required": true,
+      "sensitivity": "secret",
+      "validation": null
+    },
+    {
+      "default": null,
+      "description": "Five-digit member identifier",
+      "example": null,
+      "json_type": "string",
+      "name": "member_id",
+      "required": true,
+      "sensitivity": "internal",
+      "validation": {
+        "kind": "regex",
+        "pattern": "^\\d{5}$"
+      }
+    }
+  ],
+  "name": "look_up_member_savings_balance",
+  "outcomes": [
+    {
+      "caller_message": "Member not found",
+      "classification": "business",
+      "code": "member_not_found",
+      "detect": {
+        "kind": "text_matches",
+        "regex": "Record not found",
+        "scope": {
+          "frame_path": null,
+          "target": null
+        }
+      },
+      "recovery": null
+    },
+    {
+      "caller_message": "Permission denied",
+      "classification": "business",
+      "code": "permission_denied",
+      "detect": {
+        "kind": "text_matches",
+        "regex": "Permission denied",
+        "scope": {
+          "frame_path": null,
+          "target": null
+        }
+      },
+      "recovery": null
+    },
+    {
+      "caller_message": "Validation error",
+      "classification": "business",
+      "code": "validation_error",
+      "detect": {
+        "kind": "text_matches",
+        "regex": "validation",
+        "scope": {
+          "frame_path": null,
+          "target": null
+        }
+      },
+      "recovery": null
+    },
+    {
+      "caller_message": "Unexpected interstitial",
+      "classification": "recoverable",
+      "code": "unexpected_interstitial",
+      "detect": {
+        "kind": "text_matches",
+        "regex": "System Notice",
+        "scope": {
+          "frame_path": null,
+          "target": null
+        }
+      },
+      "recovery": {
+        "kind": "dismiss",
+        "max_attempts": 2
+      }
+    },
+    {
+      "caller_message": "Session expired",
+      "classification": "recoverable",
+      "code": "session_expired",
+      "detect": {
+        "kind": "text_matches",
+        "regex": "session.*expired",
+        "scope": {
+          "frame_path": null,
+          "target": null
+        }
+      },
+      "recovery": {
+        "kind": "reauthenticate",
+        "max_attempts": 1
+      }
+    },
+    {
+      "caller_message": "Server error",
+      "classification": "hard",
+      "code": "server_error",
+      "detect": {
+        "kind": "text_matches",
+        "regex": "(?:System error|500)",
+        "scope": {
+          "frame_path": null,
+          "target": null
+        }
+      },
+      "recovery": null
+    }
+  ],
+  "outputs": [
+    {
+      "description": "Current savings balance for the requested member",
+      "extractor": {
+        "attribute": "name",
+        "regex": null,
+        "target": {
+          "frame_path": [
+            "Content",
+            "Member workspace"
+          ],
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "regex",
+            "value": "^\\$[0-9,.]+$"
+          },
+          "node_path": null,
+          "nth": null,
+          "role": "cell",
+          "within": {
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "name_matcher": {
+              "alternatives": [],
+              "mode": "regex",
+              "value": "^\\d{5}-02\\s+Savings\\b"
+            },
+            "node_path": null,
+            "nth": null,
+            "role": "row",
+            "within": {
+              "frame_path": [
+                "Content",
+                "Member workspace"
+              ],
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Member accounts"
+              },
+              "node_path": null,
+              "nth": null,
+              "role": "table",
+              "within": null
+            }
+          }
+        }
+      },
+      "json_type": "string",
+      "name": "savings_balance",
+      "nullable": false,
+      "produced_by_step_id": "01M2YKG01A0KZ0H35Y8E00FRTN",
+      "sensitivity": "pii"
+    }
+  ],
+  "provenance": {
+    "approval": {
+      "actor": "Aryan Ajmera (reviewer)",
+      "at": "2026-09-22T21:23:18.870202Z",
+      "reason": "Reviewed compiled steps, locator evidence, outcomes, risk, and provenance",
+      "reviewed_digest": "234a5cc673d858de22fff897edc269af902b0d2f8b2a98d447f1edcbbdc9e4fa"
+    },
+    "compiler_version": "cua-compiler.v1",
+    "derived_from_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+    "lineage": [],
+    "models_used": [
+      {
+        "api_flavor": "responses",
+        "kind": "model",
+        "model_id": "gpt-6-astra",
+        "provider": "openai",
+        "reasoning_effort": "medium",
+        "structured_output_mode": "json_schema"
+      }
+    ],
+    "parent_capability_id": null,
+    "recorded_at": "2026-09-20T05:08:50.756868Z",
+    "recorder_version": "cua-recorder.v1",
+    "tool_schema_hash": "2e5051bf7a2ba0ca0f2aee3b3d7d797afc0318bf180d31eec84a58d096990954"
+  },
+  "schema_version": 2,
+  "status": "approved",
+  "steps": [
+    {
+      "action": {
+        "kind": "type_text",
+        "value_ref": {
+          "kind": "secret_ref",
+          "name": "username"
+        }
+      },
+      "checkpoint": {
+        "frame_path": [],
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "Alpha Mutual \u2014 Sign in"
+        },
+        "role": "heading"
+      },
+      "intent": "Enter the username to begin authentication before looking up the member.",
+      "on_outcome": [
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "permission_denied",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "server_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "unexpected_interstitial",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "validation_error",
+          "handling": {
+            "kind": "return"
+          }
+        }
+      ],
+      "ordinal": 1,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-09-20T05:08:55.593881Z",
+        "decided_by": {
+          "api_flavor": "responses",
+          "kind": "model",
+          "model_id": "gpt-6-astra",
+          "provider": "openai",
+          "reasoning_effort": "medium",
+          "structured_output_mode": "json_schema"
+        },
+        "decision_id": "01M2YKF4E7WCSXFNYNF98GVJFP",
+        "discovery_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+        "edits": [],
+        "observation_hash": "08df9dd3398f13ff8ee783a5fd2814f49731abd274ace7de72a234b5ba6bfe8e",
+        "observation_id": "01M2YKF4D7Z5SK4PN4QY4Q2ZDS",
+        "prompt_hash": "218717307fbdde0d79f3839b70151d99e1a8f94f7fcaf5053dc15cfbf4e914ba",
+        "prompt_template_id": "discovery-planner.v1",
+        "rationale_digest": "82d376d3f9e8e2e606449071433903af2b00484123b79c83c1116c952344bcf0",
+        "tool_call_id": "resp_0f465c18827e3651006aaf6a60e14887d19b3d7508d49fe277"
+      },
+      "risk": "reversible",
+      "step_id": "01M2YKF4E7WCSXFNYNF98GVJFP",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "e2c4b8ef2d69d89edb328e7c21d48ff04ec80d68efc4166e5b5831b3548e2547",
+              "evidence_id": "01M2YKF4D7Z5SK4PN4QY4Q2ZDT",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:50.756868Z",
+            "rationale": "Recorded AX role and accessible name",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Username"
+              },
+              "role": "textbox"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "e2c4b8ef2d69d89edb328e7c21d48ff04ec80d68efc4166e5b5831b3548e2547",
+              "evidence_id": "01M2YKF4D7Z5SK4PN4QY4Q2ZDT",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:50.756868Z",
+            "rationale": "Matching text appears beside the control in recorded AX",
+            "source": "ax_tree",
+            "strategy": "label_text",
+            "uniqueness_at_record": 1,
+            "value": {
+              "matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Username"
+              }
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "e2c4b8ef2d69d89edb328e7c21d48ff04ec80d68efc4166e5b5831b3548e2547",
+              "evidence_id": "01M2YKF4D7Z5SK4PN4QY4Q2ZDT",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:50.756868Z",
+            "rationale": "Recorded AX path within its frame",
+            "source": "ax_tree",
+            "strategy": "ax_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                2,
+                1
+              ]
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "e2c4b8ef2d69d89edb328e7c21d48ff04ec80d68efc4166e5b5831b3548e2547",
+              "evidence_id": "01M2YKF4D7Z5SK4PN4QY4Q2ZDT",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:50.756868Z",
+            "rationale": "Fallback frame-local structural path",
+            "source": "ax_tree",
+            "strategy": "structural_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                2,
+                1
+              ]
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "action": {
+        "kind": "click"
+      },
+      "checkpoint": {
+        "frame_path": [],
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "Alpha Mutual \u2014 Member Services"
+        },
+        "role": "heading"
+      },
+      "intent": "Proceed through sign-in to access member lookup.",
+      "on_outcome": [
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "permission_denied",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "server_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "unexpected_interstitial",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "validation_error",
+          "handling": {
+            "kind": "return"
+          }
+        }
+      ],
+      "ordinal": 2,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-09-20T05:09:02.601698Z",
+        "decided_by": {
+          "api_flavor": "responses",
+          "kind": "model",
+          "model_id": "gpt-6-astra",
+          "provider": "openai",
+          "reasoning_effort": "medium",
+          "structured_output_mode": "json_schema"
+        },
+        "decision_id": "01M2YKF9S3X0EDPJMY4NZXEZWB",
+        "discovery_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+        "edits": [],
+        "observation_hash": "5bc2d140c22f90e16b9043b0583d6e74e2b745a5008f94ad8ed82fdbc8159f33",
+        "observation_id": "01M2YKF9PK4VS2CM1Y034G2TZX",
+        "prompt_hash": "84d058493c42fecad5bcfed4651b2a5e5f023be50c3936789227e283ff39f35c",
+        "prompt_template_id": "discovery-planner.v1",
+        "rationale_digest": "82f98787051fc9581d13ea4ecacbae3be977d2631e96feaafda963bcad67e09a",
+        "tool_call_id": "resp_0cb1c78f7566a279006aaf6a664ec487d1ba49017d848b0293"
+      },
+      "risk": "safe",
+      "step_id": "01M2YKF9S3X0EDPJMY4NZXEZWB",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "049020df231c6aa6cded299eb7ea44862dc86bc85f4acef666335905dd9143e9",
+              "evidence_id": "01M2YKF9PQH3GQ8BDVNEMXZ122",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:56.187527Z",
+            "rationale": "Recorded AX role and name inside a semantic ancestor",
+            "source": "ax_tree",
+            "strategy": "ax_role_name_scoped",
+            "uniqueness_at_record": 1,
+            "value": {
+              "ancestor": {
+                "frame_path": [],
+                "name_matcher": {
+                  "alternatives": [],
+                  "mode": "normalized",
+                  "value": "Sign in"
+                },
+                "node_path": null,
+                "nth": null,
+                "role": "form",
+                "within": null
+              },
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Sign in"
+              },
+              "role": "button"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "049020df231c6aa6cded299eb7ea44862dc86bc85f4acef666335905dd9143e9",
+              "evidence_id": "01M2YKF9PQH3GQ8BDVNEMXZ122",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:56.187527Z",
+            "rationale": "Recorded AX role and accessible name",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Sign in"
+              },
+              "role": "button"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "049020df231c6aa6cded299eb7ea44862dc86bc85f4acef666335905dd9143e9",
+              "evidence_id": "01M2YKF9PQH3GQ8BDVNEMXZ122",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:56.187527Z",
+            "rationale": "Recorded AX path within its frame",
+            "source": "ax_tree",
+            "strategy": "ax_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                2,
+                4
+              ]
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "049020df231c6aa6cded299eb7ea44862dc86bc85f4acef666335905dd9143e9",
+              "evidence_id": "01M2YKF9PQH3GQ8BDVNEMXZ122",
+              "media_type": "application/json"
+            },
+            "frame_path": [],
+            "observed_at": "2026-09-20T05:08:56.187527Z",
+            "rationale": "Fallback frame-local structural path",
+            "source": "ax_tree",
+            "strategy": "structural_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                2,
+                4
+              ]
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": {
+            "frame_path": [],
+            "name_matcher": {
+              "alternatives": [],
+              "mode": "normalized",
+              "value": "Sign in"
+            },
+            "node_path": null,
+            "nth": null,
+            "role": "form",
+            "within": null
+          },
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "action": {
+        "kind": "type_text",
+        "value_ref": {
+          "kind": "param_ref",
+          "name": "member_id"
+        }
+      },
+      "checkpoint": {
+        "frame_path": [],
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "Alpha Mutual \u2014 Member Services"
+        },
+        "role": "heading"
+      },
+      "intent": "Enter member the requested member in the member search form.",
+      "on_outcome": [
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "permission_denied",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "server_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "unexpected_interstitial",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "validation_error",
+          "handling": {
+            "kind": "return"
+          }
+        }
+      ],
+      "ordinal": 3,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-09-20T05:09:07.948666Z",
+        "decided_by": {
+          "api_flavor": "responses",
+          "kind": "model",
+          "model_id": "gpt-6-astra",
+          "provider": "openai",
+          "reasoning_effort": "medium",
+          "structured_output_mode": "json_schema"
+        },
+        "decision_id": "01M2YKFGVDRHVE8CPRG00KZ0FY",
+        "discovery_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+        "edits": [],
+        "observation_hash": "9bb71b81251c6faadb207a0b92008477858a4c6c02d4fbee8a0746cac53320b9",
+        "observation_id": "01M2YKFGRPDXEDZJGXJN1RFHKJ",
+        "prompt_hash": "ae783829b65f9cd4ded63eef3d030a5f4b85d53a45bdf87e94dc9e756fb2e9bd",
+        "prompt_template_id": "discovery-planner.v1",
+        "rationale_digest": "a037f7f1a60ca31a48c471257ba093a24fa6f4a42534130b3def19cd3d6a047e",
+        "tool_call_id": "resp_0034fb992c3dc6a7006aaf6a6d97c087d1a629c11d792dc7ef"
+      },
+      "risk": "reversible",
+      "step_id": "01M2YKFGVDRHVE8CPRG00KZ0FY",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+              "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:03.419735Z",
+            "rationale": "Recorded AX role and accessible name",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Member ID"
+              },
+              "role": "textbox"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+              "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:03.419735Z",
+            "rationale": "Matching text appears beside the control in recorded AX",
+            "source": "ax_tree",
+            "strategy": "label_text",
+            "uniqueness_at_record": 1,
+            "value": {
+              "matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Member ID"
+              }
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+              "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:03.419735Z",
+            "rationale": "Recorded AX path within its frame",
+            "source": "ax_tree",
+            "strategy": "ax_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+              "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:03.419735Z",
+            "rationale": "Fallback frame-local structural path",
+            "source": "ax_tree",
+            "strategy": "structural_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "action": {
+        "kind": "click"
+      },
+      "checkpoint": {
+        "frame_path": [],
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "Alpha Mutual \u2014 Member Services"
+        },
+        "role": "heading"
+      },
+      "intent": "Search for member the requested member.",
+      "on_outcome": [
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "permission_denied",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "server_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "unexpected_interstitial",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "validation_error",
+          "handling": {
+            "kind": "return"
+          }
+        }
+      ],
+      "ordinal": 4,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-09-20T05:09:12.878931Z",
+        "decided_by": {
+          "api_flavor": "responses",
+          "kind": "model",
+          "model_id": "gpt-6-astra",
+          "provider": "openai",
+          "reasoning_effort": "medium",
+          "structured_output_mode": "json_schema"
+        },
+        "decision_id": "01M2YKFNZMS9T7Z9H5DEWTPP0G",
+        "discovery_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+        "edits": [],
+        "observation_hash": "b4265b60fbd447d19476b2a38885045e7827e223e223272043c10d14021a91cc",
+        "observation_id": "01M2YKFNWSD6AQY7RT72FWSKAZ",
+        "prompt_hash": "2af55770668f6ebac33fa974a1160f4eb9f9eef7a7e9a04ac7932cab18d4ce40",
+        "prompt_template_id": "discovery-planner.v1",
+        "rationale_digest": "6b4f0189b8eb131ca8ce59679a27822f62b67071ef061df60cd796a670f43c17",
+        "tool_call_id": null
+      },
+      "risk": "safe",
+      "step_id": "01M2YKFNZMS9T7Z9H5DEWTPP0G",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "27382de529cff8743598a17a18f49fc65247e0fd105b5aa9b3e6f7cb1fb72cfd",
+              "evidence_id": "01M2YKFNWYYDGZFK16JQEWPHBB",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:08.677163Z",
+            "rationale": "Recorded AX role and accessible name",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Search members"
+              },
+              "role": "button"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "27382de529cff8743598a17a18f49fc65247e0fd105b5aa9b3e6f7cb1fb72cfd",
+              "evidence_id": "01M2YKFNWYYDGZFK16JQEWPHBB",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:08.677163Z",
+            "rationale": "Recorded AX path within its frame",
+            "source": "ax_tree",
+            "strategy": "ax_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                1,
+                2
+              ]
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "27382de529cff8743598a17a18f49fc65247e0fd105b5aa9b3e6f7cb1fb72cfd",
+              "evidence_id": "01M2YKFNWYYDGZFK16JQEWPHBB",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:08.677163Z",
+            "rationale": "Fallback frame-local structural path",
+            "source": "ax_tree",
+            "strategy": "structural_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                1,
+                2
+              ]
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "action": {
+        "kind": "click"
+      },
+      "checkpoint": {
+        "frame_path": [],
+        "kind": "ax_node_exists",
+        "max_count": null,
+        "min_count": 1,
+        "name_matcher": {
+          "alternatives": [],
+          "mode": "normalized",
+          "value": "Alpha Mutual \u2014 Member Services"
+        },
+        "role": "heading"
+      },
+      "intent": "Open member the requested member to locate their current savings balance.",
+      "on_outcome": [
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "permission_denied",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "server_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "unexpected_interstitial",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "validation_error",
+          "handling": {
+            "kind": "return"
+          }
+        }
+      ],
+      "ordinal": 5,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-09-20T05:09:18.087003Z",
+        "decided_by": {
+          "api_flavor": "responses",
+          "kind": "model",
+          "model_id": "gpt-6-astra",
+          "provider": "openai",
+          "reasoning_effort": "medium",
+          "structured_output_mode": "json_schema"
+        },
+        "decision_id": "01M2YKFTW7HE2A6ZVA068TQWYT",
+        "discovery_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+        "edits": [],
+        "observation_hash": "61bce0b6b1b22b9873404e688a337d6c8e6d76d0a782d644f746c1c61bfb447c",
+        "observation_id": "01M2YKFTSGZC5WZVK0E9Z1E3RM",
+        "prompt_hash": "31c666e3f6d21b35c62696b7ecea3b56e9549f0ae7c43bce271b0041d8ac0ed1",
+        "prompt_template_id": "discovery-planner.v1",
+        "rationale_digest": null,
+        "tool_call_id": "resp_03af250d78d8e6a0006aaf6a77cc3c87d1822fffd23f2a63a5"
+      },
+      "risk": "safe",
+      "step_id": "01M2YKFTW7HE2A6ZVA068TQWYT",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "47229584b68545534683cf704e16788ce95045b4dfcda649e37f51a39c404db6",
+              "evidence_id": "01M2YKFTSPQ4Z9WPZRQGZXHC0Z",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:13.693958Z",
+            "rationale": "Recorded AX role and accessible name",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 1,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "regex",
+                "value": "View member \\d{5}"
+              },
+              "role": "link"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "47229584b68545534683cf704e16788ce95045b4dfcda649e37f51a39c404db6",
+              "evidence_id": "01M2YKFTSPQ4Z9WPZRQGZXHC0Z",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:13.693958Z",
+            "rationale": "Recorded AX path within its frame",
+            "source": "ax_tree",
+            "strategy": "ax_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                1,
+                2,
+                2,
+                0
+              ]
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "47229584b68545534683cf704e16788ce95045b4dfcda649e37f51a39c404db6",
+              "evidence_id": "01M2YKFTSPQ4Z9WPZRQGZXHC0Z",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:13.693958Z",
+            "rationale": "Fallback frame-local structural path",
+            "source": "ax_tree",
+            "strategy": "structural_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                1,
+                2,
+                2,
+                0
+              ]
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": null,
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "action": {
+        "attribute": "name",
+        "kind": "read_value",
+        "output_name": "savings_balance"
+      },
+      "checkpoint": {
+        "kind": "extract_matches",
+        "output_name": "savings_balance",
+        "regex": "^\\$[0-9,.]+$"
+      },
+      "intent": "Read member the requested member's savings balance",
+      "on_outcome": [
+        {
+          "code": "member_not_found",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "permission_denied",
+          "handling": {
+            "kind": "return"
+          }
+        },
+        {
+          "code": "server_error",
+          "handling": {
+            "kind": "fail"
+          }
+        },
+        {
+          "code": "session_expired",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "unexpected_interstitial",
+          "handling": {
+            "kind": "recover"
+          }
+        },
+        {
+          "code": "validation_error",
+          "handling": {
+            "kind": "return"
+          }
+        }
+      ],
+      "ordinal": 6,
+      "preconditions": [],
+      "provenance": {
+        "compiler_rule_id": null,
+        "created_at": "2026-09-20T05:09:26.199927Z",
+        "decided_by": {
+          "api_flavor": "responses",
+          "kind": "model",
+          "model_id": "gpt-6-astra",
+          "provider": "openai",
+          "reasoning_effort": "medium",
+          "structured_output_mode": "json_schema"
+        },
+        "decision_id": "01M2YKG01A0KZ0H35Y8E00FRTN",
+        "discovery_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+        "edits": [],
+        "observation_hash": "06b17a5cc9c972c2cd30f7574e10eeccbfc50cf37217068d90f5450d3ae7435c",
+        "observation_id": "01M2YKG7R77GADTGX1EDSQMNYZ",
+        "prompt_hash": "065ad967506d89568e181be6428b55efa8b388009e913a74724e680848c58c96",
+        "prompt_template_id": "discovery-planner.v1",
+        "rationale_digest": null,
+        "tool_call_id": "resp_0b10b1487f3dd62f006aaf6a7d2edc87d18ff830ae7843f1c4"
+      },
+      "risk": "safe",
+      "step_id": "01M2YKG01A0KZ0H35Y8E00FRTN",
+      "target": {
+        "candidates": [
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "9d05759ec437130cdd658f7a7d4113cc0edbfb48434763d92d098a6f0a49eb3a",
+              "evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:26.970917Z",
+            "rationale": "Recorded AX role and name inside a semantic ancestor",
+            "source": "ax_tree",
+            "strategy": "ax_role_name_scoped",
+            "uniqueness_at_record": 1,
+            "value": {
+              "ancestor": {
+                "frame_path": [
+                  "Content",
+                  "Member workspace"
+                ],
+                "name_matcher": {
+                  "alternatives": [],
+                  "mode": "regex",
+                  "value": "^\\d{5}-02\\s+Savings\\b"
+                },
+                "node_path": null,
+                "nth": null,
+                "role": "row",
+                "within": {
+                  "frame_path": [
+                    "Content",
+                    "Member workspace"
+                  ],
+                  "name_matcher": {
+                    "alternatives": [],
+                    "mode": "normalized",
+                    "value": "Member accounts"
+                  },
+                  "node_path": null,
+                  "nth": null,
+                  "role": "table",
+                  "within": null
+                }
+              },
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "regex",
+                "value": "^\\$[0-9,.]+$"
+              },
+              "role": "cell"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "9d05759ec437130cdd658f7a7d4113cc0edbfb48434763d92d098a6f0a49eb3a",
+              "evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:26.970917Z",
+            "rationale": "Recorded AX role and accessible name",
+            "source": "ax_tree",
+            "strategy": "ax_role_name",
+            "uniqueness_at_record": 2,
+            "value": {
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "regex",
+                "value": "^\\$[0-9,.]+$"
+              },
+              "role": "cell"
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "9d05759ec437130cdd658f7a7d4113cc0edbfb48434763d92d098a6f0a49eb3a",
+              "evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:26.970917Z",
+            "rationale": "Matching text appears beside the control in recorded AX",
+            "source": "ax_tree",
+            "strategy": "label_text",
+            "uniqueness_at_record": 1,
+            "value": {
+              "matcher": {
+                "alternatives": [],
+                "mode": "regex",
+                "value": "^\\$[0-9,.]+$"
+              }
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "9d05759ec437130cdd658f7a7d4113cc0edbfb48434763d92d098a6f0a49eb3a",
+              "evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:26.970917Z",
+            "rationale": "Recorded AX path within its frame",
+            "source": "ax_tree",
+            "strategy": "ax_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                9,
+                2,
+                3
+              ]
+            }
+          },
+          {
+            "confidence": 1.0,
+            "evidence_ref": {
+              "content_hash": "9d05759ec437130cdd658f7a7d4113cc0edbfb48434763d92d098a6f0a49eb3a",
+              "evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3",
+              "media_type": "application/json"
+            },
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "observed_at": "2026-09-20T05:09:26.970917Z",
+            "rationale": "Fallback frame-local structural path",
+            "source": "ax_tree",
+            "strategy": "structural_path",
+            "uniqueness_at_record": 1,
+            "value": {
+              "path": [
+                9,
+                2,
+                3
+              ]
+            }
+          }
+        ],
+        "match_policy": "require_unique",
+        "scope_hints": {
+          "ancestor": {
+            "frame_path": [
+              "Content",
+              "Member workspace"
+            ],
+            "name_matcher": {
+              "alternatives": [],
+              "mode": "regex",
+              "value": "^\\d{5}-02\\s+Savings\\b"
+            },
+            "node_path": null,
+            "nth": null,
+            "role": "row",
+            "within": {
+              "frame_path": [
+                "Content",
+                "Member workspace"
+              ],
+              "name_matcher": {
+                "alternatives": [],
+                "mode": "normalized",
+                "value": "Member accounts"
+              },
+              "node_path": null,
+              "nth": null,
+              "role": "table",
+              "within": null
+            }
+          },
+          "description": ""
+        }
+      },
+      "timing": {
+        "poll_interval_ms": 50,
+        "retry": {
+          "delay_ms": 0,
+          "max_attempts": 1
+        },
+        "settle_strategy": "ax_stable",
+        "stability_window_ms": 100,
+        "timeout_ms": 10000
+      }
+    }
+  ],
+  "target": {
+    "allowlist_ref": "policy.default",
+    "app_id": "cua-synthetic-bank",
+    "entry_point": "http://127.0.0.1:8099/t/alpha/",
+    "recorded_fingerprint": {
+      "app_id": "cua-synthetic-bank",
+      "app_version": "0.1.0",
+      "config_hash": "e645366e0c640fa43499dc86a8c18e54746b41f16357e54746ec1c0cfb035506",
+      "observed_at": "2026-09-21T21:53:48.327797Z",
+      "tenant_id": "alpha",
+      "ui_revision": "legacy-frames-2"
+    },
+    "surface_kind": "web",
+    "tenant_id": "alpha"
+  },
+  "version": "1.0.0"
+}

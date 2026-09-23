@@ -7,6 +7,7 @@
     "reason": "Chain and local head agree"
   },
   "context": {
+    "capability_content_digest": null,
     "capability_ref": null,
     "kind": "discovery",
     "parent_run_id": null,

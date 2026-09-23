@@ -222,6 +222,20 @@ class PlaywrightWebSurface:
             raise
         return self
 
+    async def configure_test_fault(self, kind: str, *, count: int = 1, delay_ms: int = 0) -> None:
+        """Configure the synthetic fixture through its session cookie for integration evidence.
+
+        This explicit test hook is not part of the Surface port and cannot be invoked by an
+        artifact. Keeping it on the concrete adapter lets the real browser session own the fault
+        while production replay remains unaware of target-app controls.
+        """
+        response = await self._context.request.post(
+            self.config.base_url + "/_test/faults",
+            data={"faults": [{"kind": kind, "remaining": count, "delay_ms": delay_ms}]},
+        )
+        if not response.ok:
+            raise RuntimeError("Synthetic fixture rejected fault configuration")
+
     async def _monitor(self) -> None:
         self._cdp = await self._context.new_cdp_session(self._page)
         await self._cdp.send("Page.enable")
@@ -556,7 +570,14 @@ class PlaywrightWebSurface:
         next_poll = loop.time() + timing.poll_interval_ms / 1000
         try:
             async with asyncio.timeout_at(deadline):
-                previous = last = await self._observe()
+                while True:
+                    try:
+                        previous = last = await self._observe()
+                        break
+                    except Error:
+                        self._pulse.clear()
+                        with suppress(TimeoutError):
+                            await asyncio.wait_for(self._pulse.wait(), 0.05)
                 while True:
                     self._pulse.clear()
                     with suppress(TimeoutError):

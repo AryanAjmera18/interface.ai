@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 @pytest.mark.parametrize(
     "document",
-    [doc for doc in public_schemas() if doc.name != "replay-result.v1"],
+    [doc for doc in public_schemas() if doc.name != "replay-result.v2"],
     ids=lambda doc: doc.name,
 )
 def test_every_tool_input_schema_is_strict(document: SchemaDocument) -> None:
@@ -88,11 +88,28 @@ def test_provider_schema_roundtrip_identical_semantics(provider: str) -> None:
 
 
 def test_results_are_explicitly_outside_strict_boundary() -> None:
-    document = next(doc for doc in public_schemas() if doc.name == "replay-result.v1")
+    document = next(doc for doc in public_schemas() if doc.name == "replay-result.v2")
     with pytest.raises(AssertionError):
         assert_openai_strict(document)
     body = json.loads(document.text())
     assert body["$defs"]["Success"]["properties"]["outputs"]["additionalProperties"] is not False
+
+
+def test_strict_schema_canonicalizes_semantically_unordered_enums() -> None:
+    document = strict_schema(Capability, "capability.v2")
+
+    def assert_sorted(node: Any) -> None:
+        if isinstance(node, list):
+            for child in node:
+                assert_sorted(child)
+        elif isinstance(node, dict):
+            enum_values = node.get("enum")
+            if isinstance(enum_values, list):
+                assert enum_values == sorted(enum_values, key=lambda value: json.dumps(value))
+            for child in node.values():
+                assert_sorted(child)
+
+    assert_sorted(document.schema_body)
 
 
 def test_golden_artifact_byte_stability(golden_file: Callable[[Path, bytes], bytes]) -> None:

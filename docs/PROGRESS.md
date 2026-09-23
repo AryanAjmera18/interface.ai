@@ -9,7 +9,7 @@ push without force.
 |---|---|---|---|
 | 1. Manifests, demo index, dependency cleanup | done | d3f716a | Historical attempts 001–009 lack published blobs; attempt 010's old journal contains a raw synthetic balance. Both are documented, not rewritten. |
 | 2. Compiler, verification, approval | done | 0c9a9f4 | Original URL/fingerprint omission is preserved as a labeled fixture reconstruction; future observations record both directly. |
-| 3. Deterministic replay | pending | — | — |
+| 3. Deterministic replay | in progress | — | Gate, scanner, commit, and push remain. |
 | 4. Escalation and handoff | pending | — | — |
 | 5. Stretch goals | pending | — | Exactly two: cross-tenant reuse and agent-facing catalog. |
 | 6. HTML run report | pending | — | — |

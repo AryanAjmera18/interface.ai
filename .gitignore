@@ -33,3 +33,9 @@ blob-report/
 ms-playwright/
 
 /evidence/discovery-00[1-9]/browser-profile/
+
+# Publish deterministic replay evidence, excluding ephemeral browser state and live locks.
+!/evidence/replay-*/
+!/evidence/replay-*/**
+/evidence/replay-*/browser-profile/
+/evidence/replay-*/*.lock

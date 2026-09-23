@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Field
 
-from cua.domain.common import ULID, DomainModel
+from cua.domain.common import ULID, Digest, DomainModel
 from cua.domain.ports import Clock, IdGenerator
 
 
@@ -17,6 +17,7 @@ class RunContext(DomainModel):
     trace_id: Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
     parent_run_id: ULID | None = None
     capability_ref: ULID | None = None
+    capability_content_digest: Digest | None = None
     tenant_id: str | None = None
     started_at: AwareDatetime
 
@@ -48,6 +49,7 @@ def new_run(
     ids: IdGenerator,
     parent: RunContext | None = None,
     capability_ref: str | None = None,
+    capability_content_digest: str | None = None,
     tenant_id: str | None = None,
 ) -> RunContext:
     import hashlib
@@ -59,6 +61,7 @@ def new_run(
         trace_id=parent.trace_id if parent else hashlib.sha256(run_id.encode()).hexdigest()[:32],
         parent_run_id=parent.run_id if parent else None,
         capability_ref=capability_ref,
+        capability_content_digest=capability_content_digest,
         tenant_id=tenant_id,
         started_at=clock.now(),
     )

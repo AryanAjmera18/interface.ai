@@ -214,6 +214,15 @@ class ActionAttempted(PageEvent):
     locator_ladder: LocatorLadder | None
 
 
+class LocatorResolved(PageEvent):
+    """Record the winner and every miss so fallback is observable, including successful runs."""
+
+    type: Literal["LocatorResolved"] = "LocatorResolved"
+    step_id: str
+    winning_index: int | None = Field(default=None, ge=0)
+    attempts: tuple[CandidateAttempt, ...]
+
+
 class ActionResultEvent(PageEvent):
     type: Literal["ActionResult"] = "ActionResult"
     step_id: str
@@ -269,6 +278,13 @@ class HumanAction(PageEvent):
 class ControlReturned(PageEvent):
     type: Literal["ControlReturned"] = "ControlReturned"
     actor: str = Field(min_length=1)
+
+
+class DraftReplayAuthorized(DomainModel):
+    """Make the caller's explicit bypass of approval visible in replay history."""
+
+    type: Literal["DraftReplayAuthorized"] = "DraftReplayAuthorized"
+    capability_id: ULID
 
 
 class CapabilityCompiled(DomainModel):
@@ -358,6 +374,7 @@ JournalEvent = Annotated[
     | ModelDecided
     | PolicyDecision
     | ActionAttempted
+    | LocatorResolved
     | ActionResultEvent
     | CheckpointEvaluated
     | OutcomeDetected
@@ -369,6 +386,7 @@ JournalEvent = Annotated[
     | ControlReturned
     | CapabilityCompiled
     | CapabilityApproved
+    | DraftReplayAuthorized
     | CostAmended
     | EvidenceRelabeled
     | TargetMetadataReconstructed

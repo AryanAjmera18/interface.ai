@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import JsonValue
 
 from cua.discovery.anthropic import AnthropicLLMClient
 from cua.discovery.environment import load_environment
@@ -24,7 +25,12 @@ from cua.observability.context import new_run, run_scope
 from cua.observability.evidence import EvidenceStore, SurfaceEvidenceSink
 from cua.observability.journal import RunJournal
 from cua.observability.manifest import ModelEntry, PricingEvidence, write_manifest
-from cua.observability.redaction import json_value, redact
+from cua.observability.redaction import (
+    FieldRule,
+    RedactionPolicy,
+    json_value,
+    redact,
+)
 from cua.observability.tracing import Tracing
 from cua.policy.engine import PolicyEngine
 from cua.policy.models import PolicyConfig
@@ -429,6 +435,190 @@ def diff_capabilities(left: Path, right: Path) -> None:
     typer.echo(
         f"content_digest: {capability_content_digest(before)} -> {capability_content_digest(after)}"
     )
+
+
+@app.command("replay")
+def replay_capability(
+    artifact: Path,
+    tenant: Annotated[str, typer.Option()] = "alpha",
+    input_value: Annotated[list[str] | None, typer.Option("--input")] = None,
+    allow_draft: Annotated[bool, typer.Option()] = False,
+    allow_irreversible: Annotated[bool, typer.Option()] = False,
+    fault: Annotated[str | None, typer.Option()] = None,
+    fault_delay_ms: Annotated[int, typer.Option()] = 0,
+    output: Annotated[Path, typer.Option()] = Path("evidence/replay-success"),
+) -> None:
+    """Replay a capability through its recorded data with no model in the decision loop."""
+    asyncio.run(
+        _replay_capability(
+            artifact,
+            tenant,
+            input_value or [],
+            allow_draft,
+            allow_irreversible,
+            fault,
+            fault_delay_ms,
+            output,
+        )
+    )
+
+
+async def _replay_capability(
+    artifact: Path,
+    tenant: str,
+    input_values: list[str],
+    allow_draft: bool,
+    allow_irreversible: bool,
+    fault: str | None,
+    fault_delay_ms: int,
+    output: Path,
+) -> None:
+    import importlib
+
+    from cua.domain.capability import Capability, capability_content_digest
+    from cua.domain.common import StringValue
+    from cua.domain.ports import RunStarted
+    from cua.observability.journal import JournalAdapter
+    from cua.observability.manifest import OutputEntry
+    from cua.replay.executor import ReplayExecutor, ReplayInput, ReplayOptions
+
+    capability = Capability.model_validate_json(artifact.read_bytes())
+    parser = importlib.import_module("yaml")
+    policy = PolicyConfig.model_validate(
+        parser.safe_load(Path("config/policy.yaml").read_text(encoding="utf-8"))
+    )
+    values = {item.split("=", 1)[0]: item.split("=", 1)[1] for item in input_values if "=" in item}
+    inputs = tuple(
+        ReplayInput(name=name, value=StringValue(value=value))
+        for name, value in sorted(values.items())
+    )
+    clock, ids = SystemClock(), UlidGenerator()
+    context = new_run(
+        "replay",
+        clock=clock,
+        ids=ids,
+        capability_ref=capability.capability_id,
+        capability_content_digest=capability_content_digest(capability),
+        tenant_id=tenant,
+    ).model_copy(update={"parent_run_id": capability.provenance.derived_from_run_id})
+    output.mkdir(parents=True, exist_ok=True)
+    with run_scope(context):
+        evidence = EvidenceStore(
+            output.parent,
+            context.run_id,
+            clock=clock,
+            ids=ids,
+            directory=output,
+        )
+        journal = RunJournal(output.parent, context.run_id, clock=clock, directory=output)
+        tracing = Tracing(output.parent, clock=clock, ids=ids, remote=False, directory=output)
+        surface = await PlaywrightWebSurface.launch(
+            WebConfig(
+                user_data_dir=str(output / "browser-profile"),
+                base_url="http://127.0.0.1:8099",
+                tenant_id=tenant,
+            ),
+            clock=clock,
+            ids=ids,
+            evidence=SurfaceEvidenceSink(evidence),
+            values=RuntimeValues(input_values),
+        )
+        if fault is not None:
+            await surface.configure_test_fault(fault, delay_ms=fault_delay_ms)
+        result = None
+        try:
+            journal.record(
+                RunStarted(kind="replay", parent_run_id=capability.provenance.derived_from_run_id)
+            )
+            result = await ReplayExecutor(
+                surface=surface,
+                policy=PolicyEngine(policy),
+                evidence=SurfaceEvidenceSink(evidence),
+                journal=JournalAdapter(
+                    journal,
+                    RedactionPolicy(
+                        fields=(
+                            FieldRule(path="/result/value", sensitivity="pii"),
+                            FieldRule(
+                                path="/result/attempted/value_ref/value",
+                                sensitivity="pii",
+                            ),
+                        )
+                    ),
+                ),
+                clock=clock,
+            ).execute(
+                capability,
+                inputs,
+                ReplayOptions(
+                    allow_draft=allow_draft,
+                    allow_irreversible=allow_irreversible,
+                    trace_id=context.trace_id,
+                ),
+            )
+            terminal = (
+                "success"
+                if result.kind == "success"
+                else "business"
+                if result.kind == "business_outcome"
+                else "hard_failure"
+            )
+            journal.record(
+                RunEnded.model_validate(
+                    {
+                        "result": terminal,
+                        "summary": result.kind,
+                        "failure_kind": (
+                            result.failure_kind if result.kind == "hard_failure" else None
+                        ),
+                        "failure_reason": (
+                            result.observed if result.kind == "hard_failure" else None
+                        ),
+                        "failure_step": result.step_id if result.kind == "hard_failure" else None,
+                    }
+                )
+            )
+        finally:
+            await surface.close()
+            tracing.close()
+            assert result is not None
+            output_specs = {item.name: item for item in capability.outputs}
+            output_entries: list[JsonValue] = []
+            if result.kind == "success":
+                for name, value in result.outputs.items():
+                    spec = output_specs[name]
+                    output_entries.append(
+                        OutputEntry(
+                            name=name,
+                            value=json_value(redact(value, sensitivity=spec.sensitivity)),
+                            sensitivity=spec.sensitivity,
+                        ).model_dump(mode="json")
+                    )
+            parameter_entries: list[JsonValue] = [
+                {
+                    "name": item.name,
+                    "value": json_value(redact(item.value.value, sensitivity="pii")),
+                    "sensitivity": "internal",
+                }
+                for item in inputs
+            ]
+            write_manifest(
+                journal=journal,
+                evidence=evidence,
+                tracing=tracing,
+                clock=clock,
+                inputs=redact(
+                    {
+                        "goal": None,
+                        "parameters": parameter_entries,
+                    }
+                ),
+                result_summary=redact({"status": terminal, "outputs": output_entries}),
+            )
+            journal.close()
+            evidence.close()
+    typer.echo(f"{result.kind}: {output / 'manifest.json'}")
+    typer.echo(f"capability_digest={capability_content_digest(capability)}")
 
 
 if __name__ == "__main__":

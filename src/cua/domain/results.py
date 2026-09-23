@@ -37,6 +37,7 @@ class HardFailure(DomainModel):
     observed: NonEmpty
     failure_kind: Literal[
         "drift",
+        "invalid_input",
         "precondition",
         "checkpoint",
         "locator",

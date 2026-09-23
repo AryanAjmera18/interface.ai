@@ -56,10 +56,17 @@ class EvidenceIndex(DomainModel):
 
 class EvidenceStore:
     def __init__(
-        self, root: Path, run_id: str, *, clock: Clock, ids: IdGenerator, strict: bool = True
+        self,
+        root: Path,
+        run_id: str,
+        *,
+        clock: Clock,
+        ids: IdGenerator,
+        strict: bool = True,
+        directory: Path | None = None,
     ) -> None:
         self.index = EvidenceIndex(run_id=run_id)
-        self.root = root / self.index.run_id
+        self.root = directory or root / self.index.run_id
         self.clock, self.ids, self.strict = clock, ids, strict
         self._mutex = threading.RLock()
         self._lock = WriterLock(self.root / "evidence.lock")

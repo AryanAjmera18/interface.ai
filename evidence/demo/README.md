@@ -7,10 +7,10 @@ marked **done** only when its linked bundle exists and its journal verifies.
 |---|---|---|
 | 1. Discovery: real model learns savings lookup | Done | [discovery-010 manifest](../discovery-010/manifest.json), [journal](../discovery-010/journal.ndjson), [AX and screenshot index](../discovery-010/index.json) |
 | 2. Compile: journal becomes capability | Done | [approved artifact](../../capabilities/look_up_member_savings_balance@1.0.0.json), [comparison](../../docs/compiler-vs-handwritten.md) |
-| 3. Replay success without a model | Pending | Part 3 |
-| 4. Replay business outcome: member not found | Pending | Part 3 |
-| 5. Replay recovery: dismiss interstitial | Pending | Part 3 |
-| 6. Replay hard failure with debug payload | Pending | Part 3 |
+| 3. Replay success without a model | Done | [manifest](../replay-success/manifest.json), [journal](../replay-success/journal.ndjson) |
+| 4. Replay business outcome: member not found | Done | [manifest](../replay-not-found/manifest.json), [journal](../replay-not-found/journal.ndjson) |
+| 5. Replay recovery: dismiss interstitial | Done | [manifest](../replay-recovered/manifest.json), [journal](../replay-recovered/journal.ndjson) |
+| 6. Replay hard failure with debug payload | Done | [manifest](../replay-hard-failure/manifest.json), [journal](../replay-hard-failure/journal.ndjson) |
 | 7. Same-session human escalation | Pending | Part 4 |
 | 8. Cross-tenant replay with override | Pending | Part 5 |
 | 9. Catalog agent discovers and invokes capability | Pending | Part 5 |
@@ -40,3 +40,8 @@ region-masked screenshots apply only to runs recorded after the Part 1 implement
 
 Scenario 2 compiles to six steps and verifies every observation and evidence digest. Run `uv run cua verify capabilities/look_up_member_savings_balance@1.0.0.json` from the repository root.
 
+
+Replay evidence is described in [docs/replay.md](../../docs/replay.md). Every canonical replay
+manifest binds capability `01M2YKF25VVM1RVNVNV97TG07H`, content digest
+`234a5cc673d858de22fff897edc269af902b0d2f8b2a98d447f1edcbbdc9e4fa`, and discovery parent
+run `01M2YKF25VVM1RVNVNV97TG07H`. Each chain and indexed evidence set verifies.

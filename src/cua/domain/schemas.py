@@ -41,6 +41,13 @@ def strict_schema(model: type[BaseModel], name: str) -> SchemaDocument:
             node.pop("discriminator", None)
             if "const" in node:
                 node["enum"] = [node.pop("const")]
+            enum_values = node.get("enum")
+            if isinstance(enum_values, list) and name.endswith(".v2"):
+                # JSON Schema assigns no meaning to enum order. Pydantic can obtain
+                # Literal values through set-backed typing internals, so that order can
+                # vary with import history. Canonical sorting keeps emitted schemas and
+                # their provenance digests byte-stable across processes.
+                enum_values.sort(key=canonical_json)
             if "oneOf" in node:
                 node["anyOf"] = node.pop("oneOf")
             if node.get("type") == "object":
@@ -75,7 +82,7 @@ def public_schemas() -> tuple[SchemaDocument, ...]:
         strict_schema(DecisionRequest, "decision-request.v1"),
         strict_schema(DecisionResult, "decision-result.v2"),
         SchemaDocument(
-            name="replay-result.v1",
+            name="replay-result.v2",
             schema_body=cast(
                 JsonValue, TypeAdapter(ReplayResult).json_schema(mode="serialization")
             ),

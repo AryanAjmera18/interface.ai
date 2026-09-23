@@ -263,6 +263,18 @@ def model_samples() -> list[v.DomainModel]:
             target=target,
             locator_ladder=ladder(),
         ),
+        ports.LocatorResolved(
+            observation_hash=HASH,
+            step_id="one",
+            winning_index=0,
+            attempts=(
+                ports.CandidateAttempt(
+                    candidate=cap.steps[0].target.candidates[0],
+                    outcome="matched",
+                    detail="unique",
+                ),
+            ),
+        ),
         ports.ActionResultEvent(
             observation_hash=HASH,
             step_id="one",
@@ -293,6 +305,7 @@ def model_samples() -> list[v.DomainModel]:
         ports.HumanAction(observation_hash=HASH, actor="reviewer", action=a.Click()),
         ports.ControlReturned(observation_hash=HASH, actor="reviewer"),
         ports.CapabilityCompiled(capability_id=cap.capability_id, content_digest=HASH),
+        ports.DraftReplayAuthorized(capability_id=cap.capability_id),
         ports.CapabilityApproved(
             capability_id=cap.capability_id,
             actor="Aryan Ajmera (reviewer)",

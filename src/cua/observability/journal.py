@@ -9,7 +9,13 @@ from pydantic import AwareDatetime, Field, JsonValue, TypeAdapter, ValidationErr
 from cua.domain.common import ULID, Digest, DomainModel, canonical_json, digest
 from cua.domain.ports import Clock, JournalEvent
 from cua.observability._io import WriterLock, write_bytes
-from cua.observability.redaction import TaggedValue, checked_json, redact
+from cua.observability.redaction import (
+    RedactionPolicy,
+    TaggedValue,
+    checked_json,
+    redact,
+    redaction_policy,
+)
 
 EVENTS: TypeAdapter[JournalEvent] = TypeAdapter(JournalEvent)
 
@@ -190,8 +196,12 @@ def _event_tags() -> list[dict[str, JsonValue]]:
 
 
 class JournalAdapter:
-    def __init__(self, journal: RunJournal) -> None:
+    """Apply a caller-supplied field policy at the journal's single redaction gateway."""
+
+    def __init__(self, journal: RunJournal, policy: RedactionPolicy | None = None) -> None:
         self.journal = journal
+        self.policy = policy or RedactionPolicy()
 
     async def append(self, entry: JournalEvent) -> str:
-        return self.journal.record(entry).hash
+        with redaction_policy(self.policy):
+            return self.journal.record(entry).hash

@@ -225,10 +225,11 @@ class Tracing:
         ids: IdGenerator,
         extra_exporters: Sequence[SpanExporter] = (),
         remote: bool = True,
+        directory: Path | None = None,
     ) -> None:
         run = current_run()
         self.clock = clock
-        self.path = root / run.run_id / "spans.otlp.jsonl"
+        self.path = (directory or root / run.run_id) / "spans.otlp.jsonl"
         exporters: list[SpanExporter] = [LocalOTLPExporter(self.path), *extra_exporters]
         key = os.environ.get("LANGSMITH_API_KEY") if remote else None
         if key:

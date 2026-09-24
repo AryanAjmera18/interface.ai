@@ -50,3 +50,9 @@ ms-playwright/
 # Attempt 001 stopped early and contains pre-fix raw synthetic identifiers; retain locally only.
 /evidence/escalation-discovery-attempt-001/
 /evidence/escalation-discovery-attempt-002/browser-profile/
+
+# Publish cross-tenant evidence; browser profiles remain ephemeral.
+!/evidence/cross-tenant-*/
+!/evidence/cross-tenant-*/**
+/evidence/cross-tenant-*/browser-profile/
+/evidence/cross-tenant-*/*.lock

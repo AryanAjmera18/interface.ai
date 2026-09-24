@@ -88,3 +88,19 @@ push without force.
   escalation-replay bundles were already present and tracked. Offline verification reported
   `intact=true` for all five, so no evidence rerun was needed.
 - Live spend during these checkpoints: USD 0.00.
+
+## Part 5.1 verification
+
+- Cross-tenant replay without an override failed at the first alpha-specific heading checkpoint;
+  evidence/cross-tenant-before/ retains that intact, typed hard-failure run.
+- The beta override may change only locator ladders and checkpoints, carries named human edits,
+  and is bound to approved base digest
+  234a5cc673d858de22fff897edc269af902b0d2f8b2a98d447f1edcbbdc9e4fa.
+- Cross-tenant replay with the override completed all six steps; the journal chain and indexed,
+  redacted evidence in evidence/cross-tenant-after/ verify.
+- cua verify passed the override's parent identity and content-digest binding.
+- Full gate: 250 fast tests passed, 92% coverage, seven import contracts kept; lint, format, and
+  strict mypy passed. Fourteen focused override and evidence tests also passed.
+- Full-history scanner: five exact allowlisted findings, zero failures and zero tracked-file
+  failures.
+- No live model call was made; budget-override live spend remains USD 0.00.

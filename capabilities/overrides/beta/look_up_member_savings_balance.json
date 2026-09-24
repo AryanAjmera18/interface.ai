@@ -1,0 +1,250 @@
+{
+  "created_at": "2026-09-24T12:00:00Z",
+  "edits": [
+    {
+      "actor": "reviewer:aryan",
+      "after_hash": "d649c133431e76aa04bef37b60b916e9f0644a4da790c313e0bb36c8fd52a74d",
+      "at": "2026-09-24T12:00:00Z",
+      "before_hash": "8ccbe5327750eaf8f782f2249f696e6b42514febc01992484dbf13bc71aa6c38",
+      "field_path": "/steps/0/checkpoint",
+      "reason": "Bind the checkpoint to the beta tenant heading observed in the shared target application."
+    },
+    {
+      "actor": "reviewer:aryan",
+      "after_hash": "deb4e82c211d3edf8c159e0660bd357865d664e0ea71a082317c7aa353710bee",
+      "at": "2026-09-24T12:00:00Z",
+      "before_hash": "ee37e9a12ac83f92107074d0a8562988efc21173fc18bfa1708e7079ed157dec",
+      "field_path": "/steps/1/checkpoint",
+      "reason": "Bind the checkpoint to the beta tenant heading observed in the shared target application."
+    },
+    {
+      "actor": "reviewer:aryan",
+      "after_hash": "06579ee0811c9f2ea9121a3f3774c9422dfb6fa323ec2c86853a679151c54eb6",
+      "at": "2026-09-24T12:00:00Z",
+      "before_hash": "9be410ecf00445940f56c828cfbedb3779af4af8bc211d12d57eb406eaaa686a",
+      "field_path": "/steps/2/target",
+      "reason": "Add the reviewed beta tenant label while retaining the alpha semantic locator and structural fallbacks."
+    },
+    {
+      "actor": "reviewer:aryan",
+      "after_hash": "deb4e82c211d3edf8c159e0660bd357865d664e0ea71a082317c7aa353710bee",
+      "at": "2026-09-24T12:00:00Z",
+      "before_hash": "ee37e9a12ac83f92107074d0a8562988efc21173fc18bfa1708e7079ed157dec",
+      "field_path": "/steps/2/checkpoint",
+      "reason": "Bind the checkpoint to the beta tenant heading observed in the shared target application."
+    },
+    {
+      "actor": "reviewer:aryan",
+      "after_hash": "deb4e82c211d3edf8c159e0660bd357865d664e0ea71a082317c7aa353710bee",
+      "at": "2026-09-24T12:00:00Z",
+      "before_hash": "ee37e9a12ac83f92107074d0a8562988efc21173fc18bfa1708e7079ed157dec",
+      "field_path": "/steps/3/checkpoint",
+      "reason": "Bind the checkpoint to the beta tenant heading observed in the shared target application."
+    },
+    {
+      "actor": "reviewer:aryan",
+      "after_hash": "deb4e82c211d3edf8c159e0660bd357865d664e0ea71a082317c7aa353710bee",
+      "at": "2026-09-24T12:00:00Z",
+      "before_hash": "ee37e9a12ac83f92107074d0a8562988efc21173fc18bfa1708e7079ed157dec",
+      "field_path": "/steps/4/checkpoint",
+      "reason": "Bind the checkpoint to the beta tenant heading observed in the shared target application."
+    }
+  ],
+  "parent_capability_id": "01M2YKF25VVM1RVNVNV97TG07H",
+  "parent_content_digest": "234a5cc673d858de22fff897edc269af902b0d2f8b2a98d447f1edcbbdc9e4fa",
+  "patch": {
+    "steps": [
+      {
+        "checkpoint": {
+          "frame_path": [],
+          "kind": "ax_node_exists",
+          "max_count": null,
+          "min_count": 1,
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "normalized",
+            "value": "Beta Community — Sign in"
+          },
+          "role": "heading"
+        },
+        "step_id": "01M2YKF4E7WCSXFNYNF98GVJFP",
+        "target": null
+      },
+      {
+        "checkpoint": {
+          "frame_path": [],
+          "kind": "ax_node_exists",
+          "max_count": null,
+          "min_count": 1,
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "normalized",
+            "value": "Beta Community — Retail Operations"
+          },
+          "role": "heading"
+        },
+        "step_id": "01M2YKF9S3X0EDPJMY4NZXEZWB",
+        "target": null
+      },
+      {
+        "checkpoint": {
+          "frame_path": [],
+          "kind": "ax_node_exists",
+          "max_count": null,
+          "min_count": 1,
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "normalized",
+            "value": "Beta Community — Retail Operations"
+          },
+          "role": "heading"
+        },
+        "step_id": "01M2YKFGVDRHVE8CPRG00KZ0FY",
+        "target": {
+          "candidates": [
+            {
+              "confidence": 1.0,
+              "evidence_ref": {
+                "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+                "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+                "media_type": "application/json"
+              },
+              "frame_path": [
+                "Content",
+                "Member workspace"
+              ],
+              "observed_at": "2026-09-20T05:09:03.419735Z",
+              "rationale": "Recorded AX role and accessible name",
+              "source": "ax_tree",
+              "strategy": "ax_role_name",
+              "uniqueness_at_record": 1,
+              "value": {
+                "name_matcher": {
+                  "alternatives": [
+                    "Member ID",
+                    "Account Holder Number"
+                  ],
+                  "mode": "one_of",
+                  "value": null
+                },
+                "role": "textbox"
+              }
+            },
+            {
+              "confidence": 1.0,
+              "evidence_ref": {
+                "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+                "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+                "media_type": "application/json"
+              },
+              "frame_path": [
+                "Content",
+                "Member workspace"
+              ],
+              "observed_at": "2026-09-20T05:09:03.419735Z",
+              "rationale": "Matching text appears beside the control in recorded AX",
+              "source": "ax_tree",
+              "strategy": "label_text",
+              "uniqueness_at_record": 1,
+              "value": {
+                "matcher": {
+                  "alternatives": [
+                    "Member ID",
+                    "Account Holder Number"
+                  ],
+                  "mode": "one_of",
+                  "value": null
+                }
+              }
+            },
+            {
+              "confidence": 1.0,
+              "evidence_ref": {
+                "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+                "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+                "media_type": "application/json"
+              },
+              "frame_path": [
+                "Content",
+                "Member workspace"
+              ],
+              "observed_at": "2026-09-20T05:09:03.419735Z",
+              "rationale": "Recorded AX path within its frame",
+              "source": "ax_tree",
+              "strategy": "ax_path",
+              "uniqueness_at_record": 1,
+              "value": {
+                "path": [
+                  1,
+                  1
+                ]
+              }
+            },
+            {
+              "confidence": 1.0,
+              "evidence_ref": {
+                "content_hash": "351e824a99fa97543b006f3179beeb7450e82db688e9760420abae4b22ede6a2",
+                "evidence_id": "01M2YKFGRVQ2J8SHJC8VC8P2J1",
+                "media_type": "application/json"
+              },
+              "frame_path": [
+                "Content",
+                "Member workspace"
+              ],
+              "observed_at": "2026-09-20T05:09:03.419735Z",
+              "rationale": "Fallback frame-local structural path",
+              "source": "ax_tree",
+              "strategy": "structural_path",
+              "uniqueness_at_record": 1,
+              "value": {
+                "path": [
+                  1,
+                  1
+                ]
+              }
+            }
+          ],
+          "match_policy": "require_unique",
+          "scope_hints": {
+            "ancestor": null,
+            "description": ""
+          }
+        }
+      },
+      {
+        "checkpoint": {
+          "frame_path": [],
+          "kind": "ax_node_exists",
+          "max_count": null,
+          "min_count": 1,
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "normalized",
+            "value": "Beta Community — Retail Operations"
+          },
+          "role": "heading"
+        },
+        "step_id": "01M2YKFNZMS9T7Z9H5DEWTPP0G",
+        "target": null
+      },
+      {
+        "checkpoint": {
+          "frame_path": [],
+          "kind": "ax_node_exists",
+          "max_count": null,
+          "min_count": 1,
+          "name_matcher": {
+            "alternatives": [],
+            "mode": "normalized",
+            "value": "Beta Community — Retail Operations"
+          },
+          "role": "heading"
+        },
+        "step_id": "01M2YKFTW7HE2A6ZVA068TQWYT",
+        "target": null
+      }
+    ]
+  },
+  "schema_version": 1,
+  "tenant_id": "beta"
+}

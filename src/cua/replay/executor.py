@@ -42,6 +42,7 @@ from cua.domain.results import BusinessOutcome, HardFailure, ReplayResult, Succe
 from cua.domain.steps import Step
 from cua.policy.engine import PolicyEngine
 from cua.policy.models import Budget, PolicyContext, TargetSemantics
+from cua.replay.overrides import TenantOverride
 
 
 class ReplayInput(DomainModel):
@@ -54,6 +55,7 @@ class ReplayOptions(DomainModel):
     allow_irreversible: bool = False
     trace_id: str
     resume_after_step_id: str | None = None
+    tenant_override: TenantOverride | None = None
 
 
 def validate_inputs(capability: Capability, inputs: tuple[ReplayInput, ...]) -> str | None:
@@ -185,6 +187,8 @@ class ReplayExecutor:
                 trace_id=options.trace_id,
                 journal_head_hash="0" * 64,
             )
+        if options.tenant_override is not None:
+            options.tenant_override.verify_parent(capability)
         outputs: dict[str, JsonValue] = {}
         head = "0" * 64
         if capability.status != "approved":
@@ -221,6 +225,20 @@ class ReplayExecutor:
                 len(capability.steps),
             )
         for index, step in enumerate(capability.steps[start:], start=start):
+            patch = (
+                options.tenant_override.step_patch(step.step_id)
+                if options.tenant_override is not None
+                else None
+            )
+            if patch is not None:
+                step = step.model_copy(
+                    update={
+                        "target": patch.target if patch.target is not None else step.target,
+                        "checkpoint": (
+                            patch.checkpoint if patch.checkpoint is not None else step.checkpoint
+                        ),
+                    }
+                )
             before_context = EvaluationContext(parameters=parameters)
             failed_precondition = next(
                 (

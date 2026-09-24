@@ -503,9 +503,23 @@ def compile_capability(
 
 
 @app.command("verify")
-def verify_capability(artifact: Path) -> None:
+def verify_capability(
+    artifact: Path,
+    base: Annotated[Path | None, typer.Option()] = None,
+) -> None:
     from cua.discovery.verifier import RunProvenanceVerifier
     from cua.domain.capability import Capability
+    from cua.replay.overrides import TenantOverride
+
+    if base is not None:
+        capability = Capability.model_validate_json(base.read_bytes())
+        override = TenantOverride.model_validate_json(artifact.read_bytes())
+        override.verify_parent(capability)
+        typer.echo(
+            f"PASS tenant override: {override.tenant_id} is bound to "
+            f"{override.parent_content_digest}"
+        )
+        return
 
     capability = Capability.model_validate_json(artifact.read_bytes())
     report = RunProvenanceVerifier(
@@ -602,6 +616,7 @@ def replay_capability(
     fault_delay_ms: Annotated[int, typer.Option()] = 0,
     escalate_on_failure: Annotated[bool, typer.Option()] = False,
     output: Annotated[Path, typer.Option()] = Path("evidence/replay-success"),
+    override: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """Replay a capability through its recorded data with no model in the decision loop."""
     asyncio.run(
@@ -615,6 +630,7 @@ def replay_capability(
             fault_delay_ms,
             escalate_on_failure,
             output,
+            override,
         )
     )
 
@@ -629,6 +645,7 @@ async def _replay_capability(
     fault_delay_ms: int,
     escalate_on_failure: bool,
     output: Path,
+    override: Path | None,
 ) -> None:
     import importlib
 
@@ -646,6 +663,12 @@ async def _replay_capability(
     )
 
     capability = Capability.model_validate_json(artifact.read_bytes())
+    tenant_override = None
+    if override is not None:
+        from cua.replay.overrides import TenantOverride
+
+        tenant_override = TenantOverride.model_validate_json(override.read_bytes())
+        tenant_override.verify_parent(capability)
     parser = importlib.import_module("yaml")
     policy = PolicyConfig.model_validate(
         parser.safe_load(Path("config/policy.yaml").read_text(encoding="utf-8"))
@@ -717,6 +740,7 @@ async def _replay_capability(
                     allow_draft=allow_draft,
                     allow_irreversible=allow_irreversible,
                     trace_id=context.trace_id,
+                    tenant_override=tenant_override,
                 ),
             )
             if escalate_on_failure and result.kind == "hard_failure":

@@ -21,8 +21,9 @@ profiles:
   - role: catalog_agent
     model:
       kind: model
-      provider: fake
-      model_id: deterministic-v1
-      api_flavor: offline
-      structured_output_mode: json_schema
-    max_output_tokens: 2048
+      provider: openai
+      model_id: gpt-5.6-luna
+      api_flavor: responses
+      structured_output_mode: function_tools
+      reasoning_effort: low
+    max_output_tokens: 256

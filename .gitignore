@@ -56,3 +56,9 @@ ms-playwright/
 !/evidence/cross-tenant-*/**
 /evidence/cross-tenant-*/browser-profile/
 /evidence/cross-tenant-*/*.lock
+
+# Publish the catalog invocation and its linked replay; exclude ephemeral browser state.
+!/evidence/catalog-invoke/
+!/evidence/catalog-invoke/**
+/evidence/catalog-invoke/replay/browser-profile/
+/evidence/catalog-invoke/replay/*.lock

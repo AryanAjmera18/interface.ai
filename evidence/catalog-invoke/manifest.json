@@ -1,0 +1,38 @@
+{
+  "answer": null,
+  "arguments": {
+    "hint": "last4",
+    "redacted": true,
+    "rule": "schema:pii",
+    "sha256": "d6e02736322da1752ad022cfeb301d63f542111fbfee15c0cd82baf0c1feb65b"
+  },
+  "cached_input_tokens": 0,
+  "cost_usd": 4.44e-05,
+  "input_tokens": 78,
+  "linked_replay": "replay/manifest.json",
+  "model": {
+    "api_flavor": "responses",
+    "kind": "model",
+    "model_id": "gpt-5.6-luna",
+    "provider": "openai",
+    "reasoning_effort": "low",
+    "structured_output_mode": "function_tools"
+  },
+  "output_tokens": 24,
+  "pricing_retrieved_on": "2026-09-20",
+  "pricing_source_url": "https://developers.openai.com/api/docs/pricing",
+  "question": {
+    "hint": "last4",
+    "redacted": true,
+    "rule": "schema:pii",
+    "sha256": "96388a418511aadf5e15f49a30e1626a8a61019fe424848164bc252c14383255"
+  },
+  "reasoning_tokens": 0,
+  "tool_name": "look_up_member_savings_balance",
+  "tool_result": {
+    "hint": "last4",
+    "redacted": true,
+    "rule": "schema:pii",
+    "sha256": "fac16d3d2ffa032456f7e2907f52b2ad829599fbb2a79b6021dbacbeebf50112"
+  }
+}

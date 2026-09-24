@@ -21,6 +21,7 @@ from cua.domain.common import LiteralRef, ParamRef, SecretRef, ValueRef
 from cua.domain.models import ModelProfile, ModelRegistry, ModelRole, fake_registry
 from cua.domain.ports import LLMClient, ProviderFailure, RunEnded
 from cua.domain.provenance import ModelRef
+from cua.domain.results import ReplayResult
 from cua.domain.schemas import public_schemas
 from cua.observability.context import new_run, run_scope
 from cua.observability.evidence import EvidenceStore, SurfaceEvidenceSink
@@ -646,7 +647,7 @@ async def _replay_capability(
     escalate_on_failure: bool,
     output: Path,
     override: Path | None,
-) -> None:
+) -> "ReplayResult":
     import importlib
 
     from cua.domain.capability import Capability, capability_content_digest
@@ -881,6 +882,97 @@ async def _replay_capability(
             evidence.close()
     typer.echo(f"{result.kind}: {output / 'manifest.json'}")
     typer.echo(f"capability_digest={capability_content_digest(capability)}")
+    return result
+
+
+@app.command("catalog-invoke")
+def catalog_invoke(
+    question: Annotated[str, typer.Option()],
+    tenant: Annotated[str, typer.Option()] = "alpha",
+    output: Annotated[Path, typer.Option()] = Path("evidence/catalog-invoke"),
+) -> None:
+    """Let the catalog model select a reviewed tool, then execute it through model-free replay."""
+    asyncio.run(_catalog_invoke(question, tenant, output))
+
+
+async def _catalog_invoke(question: str, tenant: str, output: Path) -> None:
+    import json
+    from typing import Any, cast
+
+    from cua.catalog.openai import CatalogRunManifest, OpenAICatalogAgent
+    from cua.catalog.registry import CapabilityCatalog
+    from cua.domain.models import ModelRole
+    from cua.domain.results import Success
+
+    catalog = CapabilityCatalog.load(Path("capabilities"), tenant_id=tenant)
+    profile = load_model_registry().get(ModelRole.CATALOG_AGENT)
+    if profile.model.provider != "openai":
+        raise ValueError("catalog-invoke requires an OpenAI catalog_agent profile")
+    pricing = load_pricing(Path("config/pricing.yaml")).get(
+        profile.model.provider, profile.model.model_id
+    )
+    agent = OpenAICatalogAgent(
+        profile.model,
+        pricing=pricing,
+        max_output_tokens=profile.max_output_tokens,
+    )
+    output.mkdir(parents=True, exist_ok=True)
+    call = await agent.select(question, tuple(item.tool for item in catalog.entries))
+    entry = catalog.by_tool_name(call.name)
+    arguments = cast(dict[str, Any], json.loads(call.arguments_json))
+    replay = await _replay_capability(
+        entry.artifact_path,
+        tenant,
+        [f"{name}={value}" for name, value in sorted(arguments.items())],
+        False,
+        False,
+        None,
+        0,
+        False,
+        output / "replay",
+        entry.override_path,
+    )
+    tool_payload = replay.model_dump(mode="json")
+    # The live demo stops at the local tool boundary: sending the returned balance back to
+    # the provider would be financial-data egress. A production caller must authorize that
+    # separately according to OutputSpec.sensitivity.
+    usages = (call.usage,)
+    cost = call.usage.cost_usd
+    manifest = CatalogRunManifest(
+        model=profile.model,
+        question=json_value(redact(question, sensitivity="pii")),
+        tool_name=call.name,
+        arguments=json_value(redact(arguments, sensitivity="pii")),
+        tool_result=json_value(
+            redact(
+                tool_payload,
+                sensitivity="pii" if isinstance(replay, Success) else "internal",
+            )
+        ),
+        answer=None,
+        linked_replay="replay/manifest.json",
+        input_tokens=sum(item.input_tokens for item in usages),
+        cached_input_tokens=sum(item.cached_input_tokens for item in usages),
+        output_tokens=sum(item.output_tokens for item in usages),
+        reasoning_tokens=sum(item.reasoning_tokens for item in usages),
+        cost_usd=cost,
+        pricing_source_url=str(pricing.source_url) if pricing is not None else None,
+        pricing_retrieved_on=(
+            pricing.retrieved_on.isoformat()
+            if pricing is not None and pricing.retrieved_on is not None
+            else None
+        ),
+    )
+    (output / "manifest.json").write_text(
+        json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    typer.echo(
+        f"catalog tool={call.name} replay={replay.kind} "
+        f"tokens={manifest.input_tokens}/{manifest.output_tokens} cost_usd={manifest.cost_usd}"
+    )
+    typer.echo(str(output / "manifest.json"))
 
 
 async def _scripted_operator_restore_search(

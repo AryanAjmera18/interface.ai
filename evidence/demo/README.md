@@ -13,7 +13,7 @@ marked **done** only when its linked bundle exists and its journal verifies.
 | 6. Replay hard failure with debug payload | Done | [manifest](../replay-hard-failure/manifest.json), [journal](../replay-hard-failure/journal.ndjson) |
 | 7. Same-session human escalation | Done | [discovery handoff](../escalation-discovery/manifest.json), [replay handoff](../escalation-replay/manifest.json), [attempt ledger](../../docs/escalation-attempts.md) |
 | 8. Cross-tenant replay with override | Done | [before: expected checkpoint drift](../cross-tenant-before/manifest.json), [after: success](../cross-tenant-after/manifest.json), [override](../../capabilities/overrides/beta/look_up_member_savings_balance.json) |
-| 9. Catalog agent discovers and invokes capability | Pending | Part 5 |
+| 9. Catalog agent discovers and invokes capability | Done | [catalog manifest](../catalog-invoke/manifest.json), [linked replay](../catalog-invoke/replay/manifest.json) |
 
 The [discovery attempt history](../../docs/discovery-attempts.md) explains why attempts
 [001–009](../discovery-001/journal.ndjson) are retained. Their failed runs are evidence of what
@@ -45,4 +45,5 @@ Replay evidence is described in [docs/replay.md](../../docs/replay.md). Every ca
 manifest binds capability `01M2YKF25VVM1RVNVNV97TG07H`, content digest
 `234a5cc673d858de22fff897edc269af902b0d2f8b2a98d447f1edcbbdc9e4fa`, and discovery parent
 run `01M2YKF25VVM1RVNVNV97TG07H`. Each chain and indexed evidence set verifies.
+
 

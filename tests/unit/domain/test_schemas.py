@@ -157,7 +157,7 @@ def test_model_config_and_environment_override(
     assert configured.get(ModelRole.DISCOVERY_PLANNER).model.model_id == "gpt-6-astra"
     assert configured.get(ModelRole.DISCOVERY_PLANNER).model.reasoning_effort == "medium"
     assert configured.get(ModelRole.EXTRACTOR).model.model_id == "gpt-5.6-luna"
-    assert configured.get(ModelRole.CATALOG_AGENT).model.provider == "fake"
+    assert configured.get(ModelRole.CATALOG_AGENT).model.model_id == "gpt-5.6-luna"
     assert load_model_registry(tmp_path / "absent.yaml") == fake_registry()
     model = fake_registry().profiles[0].model.model_dump()
     model.update(provider="openai", model_id="explicit-test-model", api_flavor="responses")

@@ -87,6 +87,13 @@ class ProviderResponseError(RuntimeError):
         )
 
 
+def openai_authorization_headers(key: str) -> httpx.Headers:
+    """Centralize the sole reviewable provider authorization construction."""
+    return httpx.Headers(
+        headers={"Authorization": f"Bearer {key}"},
+    )
+
+
 class OpenAILLMClient:
     """Call `/v1/responses` with the domain Action union embedded in a strict schema."""
 
@@ -136,7 +143,7 @@ class OpenAILLMClient:
             for attempt in range(self.max_attempts):
                 raw = await client.post(
                     "https://api.openai.com/v1/responses",
-                    headers={"Authorization": f"Bearer {key}"},
+                    headers=openai_authorization_headers(key),
                     json=body,
                 )
                 if raw.status_code not in {429, 500, 502, 503, 504}:

@@ -8,6 +8,7 @@ import httpx
 from pydantic import Field, JsonValue
 
 from cua.catalog.registry import CatalogTool
+from cua.discovery.openai import openai_authorization_headers
 from cua.discovery.pricing import PricingEntry, price_usage
 from cua.discovery.usage import normalize_openai_usage
 from cua.domain.common import DomainModel, NonEmpty
@@ -95,7 +96,7 @@ class OpenAICatalogAgent:
         async with httpx.AsyncClient(timeout=self.timeout_s, transport=self.transport) as client:
             raw = await client.post(
                 "https://api.openai.com/v1/responses",
-                headers={"Authorization": f"Bearer {key}"},
+                headers=openai_authorization_headers(key),
                 json=body,
             )
         raw.raise_for_status()

@@ -11,8 +11,8 @@ push without force.
 | 2. Compiler, verification, approval | done | 0c9a9f4 | Original URL/fingerprint omission is preserved as a labeled fixture reconstruction; future observations record both directly. |
 | 3. Deterministic replay | done | db17e64 | Pre-fix failed evidence was withheld after the privacy scan found raw fixture values; the published reruns are redacted and verified. |
 | 4. Escalation and handoff | done | 2aeeca9 | Attempt 001 remains local because it predates corrected completion metadata; attempts 002–005 document the subsequent code, config, policy-scope, and prompt defects. |
-| 5. Stretch goals | pending | — | Exactly two: cross-tenant reuse and agent-facing catalog. |
-| 6. HTML run report | pending | — | — |
+| 5. Stretch goals | done | 898df05 | Cross-tenant override and one-call Luna catalog evidence are complete. |
+| 6. HTML run report | skipped | — | Cut by the budget and speed override; document in REPORT.md. |
 | 7. README and REPORT.md | pending | — | Mermaid rendering depends on local mermaid-cli availability. |
 | 8. Self-review and submission readiness | pending | — | Fresh-clone check and final GitHub Actions verification required. |
 
@@ -104,3 +104,21 @@ push without force.
 - Full-history scanner: five exact allowlisted findings, zero failures and zero tracked-file
   failures.
 - No live model call was made; budget-override live spend remains USD 0.00.
+
+
+## Part 5.2 verification
+
+- The registry exposes approved capabilities only and derives strict function schemas from
+  ParamSpec. Secret-resolved inputs stay local and are absent from model-visible tools.
+- One gpt-5.6-luna call selected look_up_member_savings_balance with typed member_id input.
+  The linked deterministic replay succeeded without a model in its decision loop.
+- The call used 78 input and 24 output tokens, no cached or reasoning tokens, and cost
+  USD 0.0000444 from the dated pricing entry. It succeeded on attempt one.
+- The safer one-call boundary kept the raw financial result local. The catalog question,
+  arguments, tool result, and replay publication are redacted in evidence/catalog-invoke/.
+- Full gate: 253 fast tests passed, 92% coverage, seven import contracts kept; lint, format,
+  and strict mypy passed. The focused catalog and evidence lane passed 21 tests.
+- An initial post-gate commit command incorrectly continued after the scanner found a new
+  catalog Authorization construction. The follow-up centralizes that construction, records the
+  already-published occurrence as an exact history-only exception, and restores zero failures.
+- Budget-override live spend is USD 0.0000444.

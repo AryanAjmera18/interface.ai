@@ -799,7 +799,11 @@ async def _replay_capability(
                     EscalationRaised(
                         observation_hash=observation.hash,
                         escalation_id=request.request_id,
-                        reason="replay_hard_failure: scripted operator requested",
+                        reason=(
+                            "replay_hard_failure: scripted operator requested"
+                            if scripted_operator
+                            else "replay_hard_failure: human operator requested"
+                        ),
                     )
                 )
                 store = InMemoryInterventionStore()

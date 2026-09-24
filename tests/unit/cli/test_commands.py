@@ -1,5 +1,7 @@
 """Keep reviewer-facing CLI examples bound to real command flags."""
 
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from cua.cli.__main__ import app
@@ -23,3 +25,9 @@ def test_off_tree_compile_verify_approve_flags() -> None:
     assert "--output" in compile_help.output
     assert "--run-dir" in verify_help.output
     assert "--run-dir" in approve_help.output
+
+
+def test_replay_escalation_reason_distinguishes_operator_mode() -> None:
+    source = Path("src/cua/cli/__main__.py").read_text(encoding="utf-8")
+    assert "replay_hard_failure: scripted operator requested" in source
+    assert "replay_hard_failure: human operator requested" in source

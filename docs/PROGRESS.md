@@ -151,3 +151,9 @@ push without force.
 Required root paths README.md, REPORT.md, and evidence/ exist. The evidence tree contains the
 approved example artifact by link, discovery logs, replay logs, business and hard error runs,
 cross-tenant before/after runs, escalation, and the catalog invocation.
+
+## Fresh-clone finding
+
+The first Windows fresh clone failed nine byte-stability checks because Git converted committed
+JSON and golden files to CRLF. Root .gitattributes now pins text checkout to LF while preserving
+binary screenshots. This is a repository portability fix; no golden content was regenerated.

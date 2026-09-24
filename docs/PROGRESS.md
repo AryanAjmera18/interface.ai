@@ -13,7 +13,7 @@ push without force.
 | 4. Escalation and handoff | done | 2aeeca9 | Attempt 001 remains local because it predates corrected completion metadata; attempts 002–005 document the subsequent code, config, policy-scope, and prompt defects. |
 | 5. Stretch goals | done | 898df05 | Cross-tenant override and one-call Luna catalog evidence are complete. |
 | 6. HTML run report | skipped | — | Cut by the budget and speed override; document in REPORT.md. |
-| 7. README and REPORT.md | pending | — | Mermaid rendering depends on local mermaid-cli availability. |
+| 7. README and REPORT.md | done | documentation commit | Four requested diagrams are syntax-reviewed but not locally rendered. |
 | 8. Self-review and submission readiness | pending | — | Fresh-clone check and final GitHub Actions verification required. |
 
 ## Global constraints and accounting
@@ -122,3 +122,15 @@ push without force.
   catalog Authorization construction. The follow-up centralizes that construction, records the
   already-published occurrence as an exact history-only exception, and restores zero failures.
 - Budget-override live spend is USD 0.0000444.
+
+
+## Part 7 verification
+
+- README covers requirements, architecture, quickstart, the full evidence-backed demo path,
+  offline operation, artifact and result contracts, provenance, safety, testing, layout, and FAQ.
+- It contains exactly four GitHub-compatible Mermaid blocks: system architecture, capability
+  lifecycle, replay decision, and escalation state machine.
+- REPORT.md has exactly the seven requested headings in order and 956 words. Safety includes both
+  policy defects exposed by escalation attempts. Cuts includes the explicit HTML-viewer cut.
+- Mermaid CLI was not installed locally, so diagram rendering must be checked on GitHub.
+- No live model call was made; budget-override live spend remains USD 0.0000444.

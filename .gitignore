@@ -62,3 +62,6 @@ ms-playwright/
 !/evidence/catalog-invoke/**
 /evidence/catalog-invoke/replay/browser-profile/
 /evidence/catalog-invoke/replay/*.lock
+
+# Reviewer-created demo output.
+/runs/

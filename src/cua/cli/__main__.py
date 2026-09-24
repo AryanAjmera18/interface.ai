@@ -507,6 +507,7 @@ def compile_capability(
 def verify_capability(
     artifact: Path,
     base: Annotated[Path | None, typer.Option()] = None,
+    run_dir: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     from cua.discovery.verifier import RunProvenanceVerifier
     from cua.domain.capability import Capability
@@ -524,7 +525,7 @@ def verify_capability(
 
     capability = Capability.model_validate_json(artifact.read_bytes())
     report = RunProvenanceVerifier(
-        _run_directory(capability.provenance.derived_from_run_id)
+        run_dir or _run_directory(capability.provenance.derived_from_run_id)
     ).verify(capability)
     for check in report.checks:
         typer.echo(f"{'PASS' if check.passed else 'FAIL'} {check.asserted}: {check.found}")
@@ -537,6 +538,7 @@ def approve_capability(
     artifact: Path,
     actor: Annotated[str, typer.Option()],
     reason: Annotated[str, typer.Option()],
+    run_dir: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     from cua.discovery.compiler import capability_bytes
     from cua.domain.capability import Capability, capability_content_digest
@@ -561,12 +563,12 @@ def approve_capability(
         }
     )
     approved = Capability.model_validate(approved.model_dump(mode="json"))
-    run_dir = _run_directory(capability.provenance.derived_from_run_id)
+    source_run = run_dir or _run_directory(capability.provenance.derived_from_run_id)
     journal = RunJournal(
-        run_dir.parent,
+        source_run.parent,
         capability.provenance.derived_from_run_id,
         clock=SystemClock(),
-        directory=run_dir,
+        directory=source_run,
     )
     try:
         journal.record(
@@ -616,6 +618,8 @@ def replay_capability(
     fault: Annotated[str | None, typer.Option()] = None,
     fault_delay_ms: Annotated[int, typer.Option()] = 0,
     escalate_on_failure: Annotated[bool, typer.Option()] = False,
+    scripted_operator: Annotated[bool, typer.Option()] = False,
+    operator_port: Annotated[int, typer.Option()] = 8100,
     output: Annotated[Path, typer.Option()] = Path("evidence/replay-success"),
     override: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
@@ -632,6 +636,8 @@ def replay_capability(
             escalate_on_failure,
             output,
             override,
+            scripted_operator,
+            operator_port,
         )
     )
 
@@ -647,6 +653,8 @@ async def _replay_capability(
     escalate_on_failure: bool,
     output: Path,
     override: Path | None,
+    scripted_operator: bool = False,
+    operator_port: int = 8100,
 ) -> "ReplayResult":
     import importlib
 
@@ -704,6 +712,7 @@ async def _replay_capability(
                 user_data_dir=str(output / "browser-profile"),
                 base_url="http://127.0.0.1:8099",
                 tenant_id=tenant,
+                headless=not (escalate_on_failure and not scripted_operator),
             ),
             clock=clock,
             ids=ids,
@@ -793,18 +802,48 @@ async def _replay_capability(
                         reason="replay_hard_failure: scripted operator requested",
                     )
                 )
+                store = InMemoryInterventionStore()
                 coordinator = HandoffCoordinator(
                     surface=surface,
                     journal=journal_adapter,
                     leases=leases,
-                    store=InMemoryInterventionStore(),
+                    store=store,
                 )
                 await coordinator.open(request, observation)
-                owned = await coordinator.take_control(request.request_id, "scripted-operator")
-                await _scripted_operator_restore_search(
-                    owned.cdp_endpoint or "", coordinator, request.request_id
-                )
-                await coordinator.hand_back(request.request_id, "restored expected search result")
+                if scripted_operator:
+                    owned = await coordinator.take_control(request.request_id, "scripted-operator")
+                    await _scripted_operator_restore_search(
+                        owned.cdp_endpoint or "", coordinator, request.request_id
+                    )
+                    await coordinator.hand_back(
+                        request.request_id, "restored expected search result"
+                    )
+                else:
+                    import uvicorn
+
+                    from cua.escalation.console import create_operator_app
+
+                    console = create_operator_app(store, coordinator, evidence_reader=evidence.get)
+                    server = uvicorn.Server(
+                        uvicorn.Config(
+                            console,
+                            host="127.0.0.1",
+                            port=operator_port,
+                            log_level="warning",
+                        )
+                    )
+                    server_task = asyncio.create_task(server.serve())
+                    typer.echo(f"operator_url=http://127.0.0.1:{operator_port}/operator")
+                    while store.get(request.request_id).status not in {
+                        "resolved",
+                        "aborted",
+                    }:
+                        if server_task.done():
+                            await server_task
+                            raise RuntimeError("Operator console stopped before handback")
+                        await asyncio.sleep(0.2)
+                    server.should_exit = True
+                    await server_task
                 resumed_observation = await surface.observe()
                 if handoff_checkpoint_satisfied(
                     capability, result.step_id, resumed_observation, inputs
@@ -931,6 +970,8 @@ async def _catalog_invoke(question: str, tenant: str, output: Path) -> None:
         False,
         output / "replay",
         entry.override_path,
+        False,
+        8100,
     )
     tool_payload = replay.model_dump(mode="json")
     # The live demo stops at the local tool boundary: sending the returned balance back to

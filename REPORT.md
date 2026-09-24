@@ -1,107 +1,146 @@
 # 1. Architecture
 
-The system separates one-time discovery from repeat execution. A Playwright surface converts the
-legacy application into normalized accessibility-tree observations. A LangGraph discovery graph
-observes, asks a model for a typed action, checks policy, acts, and verifies. LangGraph makes
-terminal edges, budget stops, policy denial, and escalation inspectable control flow. LangSmith is
-optional telemetry; local OTel spans are always available.
+The design starts from a provenance claim: every artifact field traces to an observation, a model
+decision, a deterministic compiler rule, or a named human edit. `cua verify` checks those links,
+the journal chain, recompilation, evidence digests, and content-bound approval.
 
-The journal is the source transcript. A deterministic compiler builds the capability from accepted
-actions, observations, policy decisions, and extractor results rather than asking a model to write
-the artifact. Domain, policy, and replay are framework-free. One OpenAI model discovered the flow,
-Luna selected it from the catalog, and replay used no model.
+One-time discovery uses a LangGraph loop to observe, decide, check policy, act, and verify. A
+deterministic compiler turns the accepted journal records into a typed capability. Replay reads
+that artifact without an LLM. Domain, policy, and replay stay framework-free; Playwright,
+LangGraph, model clients, and storage sit behind ports.
 
-This costs more engineering than replaying generated code, but yields a reviewable boundary. At
-scale, adapters and stores would become deployable services while the domain contracts remain
-stable.
+The accessibility tree is the perception channel because it survives the target's hostile markup:
+interactive elements have no IDs, layout uses tables, and some buttons are styled spans or
+JavaScript links. Role and accessible name carry semantics that pixels lack. AX values can be
+redacted field by field, while screenshots require pixel masking. The normalized tree also maps
+to Windows UIA and macOS AX, which is why the desktop seam can share the same domain shape.
+
+The target app is self-built so tests are deterministic and hermetic, runtime faults are
+injectable, two tenant configurations can exercise reuse, and no public site's terms or real PII
+are involved. Discovery-010 used `gpt-6-astra`: six decisions, 18,090 input tokens including
+2,742 cached tokens, 1,152 output tokens, and $0.213822. The catalog evidence used
+`gpt-5.6-luna`. Total recorded live spend is $3.7975124, including retained escalation-discovery
+attempts. Replay makes no model call.
 
 # 2. Artifact schema
 
-A capability has typed scalar parameters, sensitivity on every input and output, an ordered step
-list, predicates expressed as data, named outcomes, and full provenance. Each locator ladder
-carries multiple evidence-backed candidates ordered by a pure stability function. Steps record
-intent, timing, risk, checkpoints, outcome handling, and the observation and decision that caused
-them.
+A capability contains typed scalar inputs with sensitivity, typed outputs and extractors, ordered
+steps, data-only predicates, named outcomes, timing, risk, and provenance. Approval binds a digest
+of canonical content; changing reviewed content makes approval stale. Provider-strict schemas use
+typed entry lists in place of arbitrary-key maps.
 
-Approval binds the canonical content digest while excluding status and the approval record itself.
-A changed artifact therefore becomes stale rather than retaining silent approval. Provider-strict
-schemas use entry lists instead of open-keyed maps. Tenant overrides are separate, limited to
-locators and checkpoints, and bound to the base digest.
+Locator ladders encode a stability argument rather than model preference. Semantic role and name
+come first because they survive restyling and most tenant branding. Positional addressing is
+allowed only inside a semantically identified container. Coordinates rank last and are never valid
+alone. Recorded uniqueness affects ordering, and replay uses `require_unique`; ambiguity fails
+closed instead of silently choosing the first match. The savings extractor demonstrates this:
+it finds the currency cell inside the row matching the Savings account, itself inside the named
+Member accounts table.
 
-The trade-off is visible complexity. Dropping provenance, sensitivity, or outcome types would make
-the file shorter but remove the facts reviewers need. At scale, authoring tools should present
-semantic diffs rather than raw JSON.
+Outcome classes are enforced by Pydantic validators. A recoverable outcome must name a bounded
+recovery action; a business outcome may not have one. “Member not found” can therefore return as
+an answer, while an interstitial can be dismissed only within its declared bound.
 
 # 3. Determinism & error handling
 
-Replay validates inputs, checks policy, resolves a recorded ladder, acts, settles by an explicit
-strategy, detects outcomes, then evaluates the checkpoint. No model fallback exists. The observed
-alpha success executed six steps; beta failed on an alpha heading without an override and succeeded
-with the reviewed override.
+Replay validates inputs and artifact approval, checks the surface fingerprint, evaluates policy,
+resolves the recorded ladder, acts, settles, detects outcomes, and evaluates the checkpoint in a
+fixed order. The web settle rule requires network quiet, no pending frame navigation, and two
+equal consecutive AX snapshots across the stability window. It waits on events and poll timers,
+not fixed sleeps. Its typed timeout retains the last hashes, structural diff, pending request
+count, and navigation state.
 
-Business outcomes such as no member and permission denial return typed answers. Recoverable
-conditions such as an interstitial remain journal history and lead to a terminal result after a
-bounded recovery. Locator exhaustion, policy denial, invalid input, timeout, server failure, and
-checkpoint failure produce HardFailure with step, expectation, observation, trace, and evidence.
+Business outcomes return typed `BusinessOutcome` values. Recovery is journal history rather than
+a terminal caller result. The committed capability dismisses an unexpected interstitial at most
+twice and re-authenticates an expired session once. Exhausted locators, policy denial, invalid
+input, timeout, server failure, and failed checkpoints return `HardFailure` with the step,
+expectation, observation, trace, journal head, and evidence reference.
 
-Determinism is bounded by the external UI and browser. Fingerprints, lower-ranked locator use, and
-settle outcomes make drift visible rather than eliminating it. At scale, capability promotion
-would use repeated deterministic canary replays across supported surface versions.
+The browser and external UI still introduce timing and version variation. Hashes, fingerprints,
+fallback use, settle records, and failures make that variation observable; they do not pretend to
+remove it.
 
 # 4. Heterogeneity & multi-tenant
 
-The Surface protocol isolates observe, resolve, act, settle, and control transfer. Browser-specific
-DOM and CDP details remain in the Playwright adapter. The desktop stub maps the same concepts to
-UIA or AX; CDP-to-CSS fallback cannot port and needs a platform-native equivalent.
+The target app is the legacy-web case: nested iframes, table layout, non-semantic controls, no test
+IDs, and tenant-specific labels and field order. The surface therefore observes each frame
+separately, records frame paths and frame URLs, then merges them into one portable AX tree. This
+was required both for locating controls and for applying policy to the content frame rather than
+the unchanged outer frameset URL.
 
-Alpha and beta share one target codebase but vary labels, branding, field order, and confirmation
-behavior. The approved alpha lookup failed on beta as expected. A named human override added beta
-labels and checkpoints without changing action, risk, outcomes, inputs, or outputs; its successful
-run retained fingerprint drift and a verified parent digest.
+Alpha and beta share one application but have different configuration hashes. Replay compares
+`app_version` and `config_hash` in the surface fingerprint, while policy canonicalizes dynamic
+routes such as `/member/:id`. The approved alpha capability records drift and fails on beta's
+different labels without an override. The reviewed beta override may patch only locator ladders
+and checkpoints—never actions, outcomes, risk, inputs, or outputs. It binds the base capability ID
+and content digest, so a changed base makes it stale. The committed before and after runs show the
+failure and successful reuse.
 
-Overrides reduce duplicate artifacts but require governance. At scale, supported tenant matrices,
-expiry rules, and recorded beta observations should replace manual alias maintenance.
+The Surface protocol also has a desktop stub for UIA/AX. Browser CDP identity and CSS fallback do
+not port; a production desktop adapter needs native element identity while preserving the domain
+contract.
 
 # 5. Escalation & handoff
 
-Discovery escalates dead ends, explicit help requests, and irreversible actions. Replay can
-escalate a hard failure through a framework-free port. SessionLease tracks RUNNING, PAUSED,
-OPERATOR_CONTROL, HANDBACK_PENDING, and terminal abort, including actor and expiry.
+Discovery declares `dead_end` after configurable N consecutive actions produce no observation
+hash change, or after the same action-target pair occurs three times. It also escalates explicit
+help requests, policy denials, budget exhaustion, surface errors, and irreversible confirmation.
+The journal records the reason, terminal edge, and triggering observation hash. The concrete
+intervention request carries the capability or goal, optional step ID and intent, reason and
+detail, redacted inputs, screenshot and AX references, trace ID, resume token, and lease.
 
-The evidence transfers the same Chromium session over CDP to a minimal operator surface. The
-scripted-operator actor is explicit. Handback records the human action and AX change, then
-automation re-observes before continuing. LangGraph checkpoints preserve graph data; the lease
-preserves authority and browser continuity.
+A `SessionLease` moves authority through RUNNING, PAUSED, OPERATOR_CONTROL, HANDBACK_PENDING, and
+resume or abort. The operator attaches to the same Chromium context over CDP. On handback,
+automation re-observes and rechecks the checkpoint instead of trusting the operator's assertion.
+The committed evidence used the named `scripted-operator` actor for repeatability. A person uses
+the same handoff through the operator console: take control, act in the visible browser, and hand
+back before replay resumes.
 
-A real operator co-browsing interface was outside scope. At scale, leases need durable storage,
-authenticated identities, authorization, and audited remote session transport.
+LangGraph checkpoints persist graph data; the lease protects authority over the live browser.
+Production use still needs durable leases, authenticated operators, authorization, and audited
+remote transport.
 
 # 6. Safety
 
-The URL allowlist compares parsed scheme, normalized host, explicit wildcard labels, port, and
-decoded path. Tests cover userinfo, suffix, query-string, encoded traversal, IDN, case, and default
-ports. Policy derives risk from action, route, and target semantics at planner time and immediately
-before surface action. Approved status, recorded irreversible risk, and an explicit caller flag
-are all required for irreversible replay.
+The URL allowlist compares parsed scheme, normalized host, explicit wildcard labels, normalized
+port, and decoded path. Tests cover userinfo, suffix, query-string, encoded traversal, IDN, case,
+and default-port attacks. Risk comes from named policy rules, not the model, and is checked before
+planner dispatch and immediately before surface action.
 
-Two escalation attempts exposed concrete policy defects. First, an irreversible rule named a
-route the fixture never served, so a broad safe-click rule won; configuration now self-checks the
-real review and beta-extra routes. Second, the outer frameset URL stayed fixed while its content
-frame navigated, so policy now classifies against the target-owning frame URL.
+Irreversible discovery actions escalate. Blocking every such action would make the banking flow
+unusable; flagging and continuing would permit a bank action without review. Escalation keeps a
+named human on the decision. Replay separately requires approved content, recorded irreversible
+risk, and the caller's explicit flag.
 
-AX text is untrusted prompt input, and policy contains a model that follows injected text.
-Sensitive fields pass one redaction choke point; screenshots use AX bounds and fall back to full
-viewport masking. The chain detects ordering changes but does not authenticate a same-process
-rewrite. A sensitive output returned to a calling model is provider egress controlled by
-OutputSpec sensitivity. The catalog evidence deliberately keeps the raw balance local.
+The retained attempts exposed two real defects. In attempt 3, an irreversible submit ran without
+a human because the rule named a route the app never served, allowing the broad safe-click rule
+to win. Route self-checks now cover the actual review and beta-extra paths. Attempt 4 showed that
+the outer frameset URL remained fixed while the action belonged to a changing content frame;
+policy now uses the target-owning frame URL.
+
+Page text is untrusted input; if the model follows injected instructions, policy still refuses
+anything outside the allowlist. Persisted sensitive values pass through the observability
+redaction choke point. Current replay AX nodes include bounds, and evidence shows region-masked
+screenshots. Missing sensitive bounds fail closed to full-viewport masking; discovery-010 retains
+one legacy full-viewport image.
+
+Limits remain. Typed username values can appear in later AX snapshots after form entry.
+Discovery-010's historical journal contains one raw synthetic balance recorded before output
+masking. `member_id` is configured as `internal`; changing that rule to `pii` makes its persisted
+representation a hash marker. The local hash-chain head detects editing but cannot authenticate a
+same-process rewrite of both journal and anchor.
 
 # 7. Cuts
 
-- journals and manifests are the evidence format; an HTML viewer over them is next.
-- Operator co-browsing is scripted; next, add authenticated remote control with durable leases.
-- The desktop surface is a typed stub; next, implement UIA and macOS AX adapters.
-- The hand-built OpenAI httpx transport owns retries and errors; next, migrate to the official SDK.
-- Journal heads are local; next, anchor signed heads in an external append-only store.
-- Early attempts retain blank screenshots or omit pre-mask blobs; next runs use region masking.
-- Only OpenAI has live evidence; next, validate the provider-neutral seam with Anthropic.
-- No MCP server was added because the assignment rewards a narrow agent-facing catalog.
+- Journals and manifests are the evidence format; an HTML viewer over them is next.
+- Screenshot masking uses AX bounds when present and full-viewport masking when a sensitive node
+  has none; semantic AX snapshots remain the primary failure evidence.
+- Operator co-browsing is a local console; durable leases, authentication, authorization, and
+  remote transport remain production work.
+- The desktop surface is a typed stub; UIA and macOS AX adapters remain unimplemented.
+- Journal heads are local; an external append-only signed anchor is not implemented.
+- The hand-built OpenAI transport owns retries and error mapping; migration to the official SDK
+  remains open.
+- Only OpenAI has live evidence; Anthropic compatibility is schema-tested rather than live-tested.
+- Stretch goals were limited to two (cross-tenant overrides, agent catalog); MCP, multi-run
+  stability and code generation were left out.

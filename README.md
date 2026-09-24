@@ -13,17 +13,27 @@ the decision loop.
 Every step links to the observation and decision that produced it. Run journals are hash chained,
 evidence blobs are content addressed, and approval is bound to the artifact content digest.
 
+Start with the [evidence index](evidence/demo/README.md) and
+[requirement summaries](evidence/demo/SUMMARY.md). Discovery used `gpt-6-astra`; the
+catalog agent used `gpt-5.6-luna`. Total recorded live spend is **$3.7975124**:
+$3.583646 for the retained escalation-discovery attempts, $0.213822 for discovery-010, and
+$0.0000444 for the catalog selection.
+
+| Search | Results | Detail, masked | Balance, masked |
+|---|---|---|---|
+| ![Member search](evidence/demo/screenshots/01-search.png) | ![Search results](evidence/demo/screenshots/02-results.png) | ![Member detail with masked identity](evidence/demo/screenshots/03-detail-masked.png) | ![Savings balance with masked financial values](evidence/demo/screenshots/04-balance-masked.png) |
+
 ## Status at a glance
 
-| Brief requirement | Implementation | Evidence |
+| Brief requirement | Where implemented | Evidence summary |
 |---|---|---|
-| 3.1 target system | cua.target_app, two tenants and injectable faults | tests/integration/target_app/ |
-| 3.2 discovery | LangGraph loop, compact AX prompt, policy before action | evidence/discovery-010/ |
-| 3.3 capability artifact | Pydantic schema, compiler, migrations | capabilities/ and docs/schema/ |
-| 3.4 deterministic replay | framework-free executor and typed results | evidence/replay-*/ |
-| 3.5 escalation | lease, same-session CDP handoff, operator console | evidence/escalation-*/ |
-| 3.6 safety | structural URL allowlist, derived risk, redaction, budgets | tests/unit/policy/ |
-| 3.7 observability | journal, blobs, spans, manifests, verifier | evidence/demo/README.md |
+| 3.1 Goal-driven agent loop | `src/cua/discovery/graph.py` | [Discovery](evidence/demo/SUMMARY.md#31-goal-driven-agent-loop) |
+| 3.2 Structured artifact | `src/cua/domain/capability.py`, `src/cua/discovery/compiler.py` | [Artifact](evidence/demo/SUMMARY.md#32-structured-artifact) |
+| 3.3 Deterministic replay | `src/cua/replay/executor.py` | [Replay](evidence/demo/SUMMARY.md#33-deterministic-replay) |
+| 3.4 Safety & policy guardrails | `src/cua/policy/`, `src/cua/observability/redaction.py` | [Safety](evidence/demo/SUMMARY.md#34-safety--policy-guardrails) |
+| 3.5 Evidence / observability | `src/cua/observability/` | [Evidence](evidence/demo/SUMMARY.md#35-evidence--observability) |
+| 3.6 Human-in-the-loop escalation & handoff | `src/cua/escalation/` | [Handoff](evidence/demo/SUMMARY.md#36-human-in-the-loop-escalation--handoff) |
+| 3.7 Heterogeneity & scale | Surface seam, desktop stub, tenant overrides, [REPORT.md §4](REPORT.md#4-heterogeneity--multi-tenant) | [Heterogeneity](evidence/demo/SUMMARY.md#37-heterogeneity--scale) |
 
 ## Architecture
 
@@ -72,13 +82,13 @@ locator success and surface fingerprints create explicit drift records.
 ```mermaid
 stateDiagram-v2
   [*] --> RUNNING
-  RUNNING --> PAUSED
-  PAUSED --> OPERATOR_CONTROL
-  OPERATOR_CONTROL --> HANDBACK_PENDING
-  HANDBACK_PENDING --> RUNNING
-  PAUSED --> ABORTED
-  OPERATOR_CONTROL --> ABORTED
-  HANDBACK_PENDING --> ABORTED
+  RUNNING --> PAUSED: escalate
+  PAUSED --> OPERATOR_CONTROL: take control
+  OPERATOR_CONTROL --> HANDBACK_PENDING: hand back
+  HANDBACK_PENDING --> RUNNING: resume
+  PAUSED --> ABORTED: abort or expire
+  OPERATOR_CONTROL --> ABORTED: abort or expire
+  HANDBACK_PENDING --> ABORTED: abort or expire
 ```
 
 The lease answers who controls the live session. LangGraph checkpoints preserve graph data; the
@@ -114,25 +124,63 @@ uv run --locked python -m cua.target_app
 
 ## Demo path
 
-Run these from another terminal while the target app is active:
+All reviewer-created output goes under `runs/`, which Git ignores. Start the target app
+in a separate terminal with `uv run --locked python -m cua.target_app`.
+
+### Track A: no API key, free
+
+1. `uv run cua verify capabilities/look_up_member_savings_balance@1.0.0.json`
+   Expected: every provenance, evidence, journal-chain, recompilation, and approval check passes.
+2. `uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=10023 --output runs/replay-success`
+   Expected: `success` with a redacted savings-balance output.
+3. `uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=99999 --output runs/replay-not-found`
+   Expected: the declared `member_not_found` business outcome.
+4. `uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=10023 --fault unexpected_interstitial --output runs/replay-recovered`
+   Expected: a journaled recovery followed by success.
+5. `uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=10023 --fault server_error_500 --output runs/replay-hard-failure`
+   Expected: a typed hard failure with step and evidence references.
+6. `uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant beta --input member_id=10023 --output runs/cross-tenant-before`
+   Expected: fingerprint drift and an alpha-label checkpoint failure.
+7. `uv run cua verify capabilities/overrides/beta/look_up_member_savings_balance.json --base capabilities/look_up_member_savings_balance@1.0.0.json`
+   Expected: the override is bound to the approved base digest.
+8. `uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant beta --input member_id=10023 --override capabilities/overrides/beta/look_up_member_savings_balance.json --output runs/cross-tenant-after`
+   Expected: success on beta with the same approved capability.
+9. Follow “Take over the session yourself” below.
+   Expected: the paused run resumes only after named control transfer and handback.
+
+### Track B: OPENAI_API_KEY required
+
+Discovery uses `gpt-6-astra` and historically cost about **$0.20** for this lookup.
+Credentials are fixture-local secret references; do not pass them on the command line.
+
+1. `uv run cua discover --goal "look up member 10023 and read their current savings balance" --target http://127.0.0.1:8099 --tenant alpha --param member_id=10023 --output runs/discovery-new`
+   Expected: a new discovery manifest and hash-chained journal under `runs/discovery-new/`.
+2. `uv run cua compile runs/discovery-new -o runs/look_up_member_savings_balance.json`
+   Expected: a new draft artifact derived from that journal; committed capabilities are untouched.
+3. `uv run cua verify runs/look_up_member_savings_balance.json --run-dir runs/discovery-new`
+   Expected: provenance and evidence verification passes against the new run.
+4. `uv run cua approve runs/look_up_member_savings_balance.json --actor "Your Name" --reason "Reviewed new run" --run-dir runs/discovery-new`
+   Expected: status becomes approved and the approval digest is journaled in the new run.
+5. `uv run cua catalog-invoke --question "What is member 10023's savings balance?" --tenant alpha --output runs/catalog-invoke`
+   Expected: `gpt-5.6-luna` selects the typed tool, then model-free replay returns a
+   locally redacted result. The committed example cost $0.0000444.
+
+### Take over the session yourself
+
+Run:
 
 ```sh
-uv run cua discover --goal "look up member 10023 and read their current savings balance" --target http://127.0.0.1:8099 --tenant alpha --param username=reviewer --param password=reviewer
-uv run cua compile evidence/discovery-010 --output capabilities/look_up_member_savings_balance@1.0.0.json
-uv run cua verify capabilities/look_up_member_savings_balance@1.0.0.json
-uv run cua approve capabilities/look_up_member_savings_balance@1.0.0.json --actor "Reviewer" --reason "Reviewed evidence"
-uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=10023 --output evidence/replay-success
-uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=99999 --output evidence/replay-not-found
-uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=10023 --fault unexpected_interstitial --output evidence/replay-recovered
-uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=10023 --fault server_error_500 --escalate-on-failure --output evidence/escalation-replay
-uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant beta --input member_id=10023 --override capabilities/overrides/beta/look_up_member_savings_balance.json --output evidence/cross-tenant-after
-uv run cua catalog-invoke --question "What is member 10023's savings balance?" --tenant alpha --output evidence/catalog-invoke
+uv run cua replay capabilities/look_up_member_savings_balance@1.0.0.json --tenant alpha --input member_id=10023 --fault server_error_500 --escalate-on-failure --operator-port 8100 --output runs/escalation-manual
 ```
 
-Expected results are success, business outcome, visible recovery, same-session handoff,
-cross-tenant success, and a Luna-selected catalog invocation. Each command writes its named
-evidence directory. The HTML report command was cut; journals and manifests are the evidence
-format.
+The terminal prints `operator_url=http://127.0.0.1:8100/operator` and holds a visible
+Chromium session. Open that URL, choose the request, select **Take control**, correct the page in
+the visible browser so it reaches the expected member state, then select **Hand back**. Replay
+re-observes the same session and resumes only if the recorded checkpoint is satisfied.
+
+The committed escalation evidence used the explicitly labeled `scripted-operator` actor
+for repeatability. The steps above exercise the same lease, CDP session, AX diff, and handback with
+a person in control.
 
 ## Running without live services
 
@@ -142,23 +190,74 @@ replay, verification, fault tests, and cross-tenant runs do not.
 
 ## The capability artifact
 
+This excerpt is copied from
+`capabilities/look_up_member_savings_balance@1.0.0.json`. Ellipses shorten only long
+hashes.
+
 ```json
 {
-  "status": "approved",
-  "inputs": [{"name": "member_id", "sensitivity": "internal"}],
-  "steps": [{
-    "intent": "Enter the requested member ID",
-    "action": {"kind": "type_text", "value_ref": {"kind": "param_ref", "name": "member_id"}},
-    "target": {"candidates": [{"strategy": "ax_role_name", "source": "ax_tree"}]},
-    "checkpoint": {"kind": "ax_node_exists", "role": "heading"},
-    "provenance": {"observation_hash": "...", "decided_by": {"kind": "model"}}
-  }],
-  "outcomes": [{"code": "member_not_found", "classification": "business"}]
+  "step": {
+    "step_id": "01M2YKG01A0KZ0H35Y8E00FRTN",
+    "ordinal": 6,
+    "intent": "Read member the requested member's savings balance",
+    "action": {"kind": "read_value", "output_name": "savings_balance", "attribute": "name"},
+    "target": {
+      "match_policy": "require_unique",
+      "candidates": [
+        {"strategy": "ax_role_name_scoped", "uniqueness_at_record": 1,
+         "evidence_ref": {"evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3", "content_hash": "9d057...a49eb3a", "media_type": "application/json"}},
+        {"strategy": "ax_role_name", "uniqueness_at_record": 2,
+         "evidence_ref": {"evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3", "content_hash": "9d057...a49eb3a", "media_type": "application/json"}},
+        {"strategy": "label_text", "uniqueness_at_record": 1,
+         "evidence_ref": {"evidence_id": "01M2YKFZZ4341DJDMT4JW3TZW3", "content_hash": "9d057...a49eb3a", "media_type": "application/json"}}
+      ]
+    },
+    "provenance": {
+      "discovery_run_id": "01M2YKF25VVM1RVNVNV97TG07H",
+      "observation_id": "01M2YKG7R77GADTGX1EDSQMNYZ",
+      "observation_hash": "06b17...7435c",
+      "decision_id": "01M2YKG01A0KZ0H35Y8E00FRTN",
+      "prompt_template_id": "discovery-planner.v1",
+      "prompt_hash": "065ad...c96",
+      "decided_by": {"kind": "model", "provider": "openai", "model_id": "gpt-6-astra", "api_flavor": "responses", "structured_output_mode": "json_schema", "reasoning_effort": "medium"}
+    }
+  },
+  "output": {
+    "name": "savings_balance",
+    "sensitivity": "pii",
+    "extractor": {
+      "attribute": "name",
+      "target": {
+        "role": "cell",
+        "name_matcher": {"mode": "regex", "value": "^\\$[0-9,.]+$"},
+        "within": {
+          "role": "row",
+          "name_matcher": {"mode": "regex", "value": "^\\d{5}-02\\s+Savings\\b"},
+          "within": {"role": "table", "name_matcher": {"mode": "normalized", "value": "Member accounts"}}
+        }
+      }
+    }
+  },
+  "outcome": {
+    "code": "member_not_found",
+    "classification": "business",
+    "detect": {"kind": "text_matches", "regex": "Record not found"},
+    "caller_message": "Member not found",
+    "recovery": null
+  }
 }
 ```
 
-The real artifact contains complete typed values, fallback ladders, timing, output extraction,
-outcome handling, and content-bound approval.
+## Multi-tenant reuse
+
+Beta labels the same textbox “Account Holder Number,” so the approved alpha artifact records
+fingerprint drift and fails its alpha-specific checkpoint
+([before evidence](evidence/cross-tenant-before/manifest.json)). The separate
+[beta override](capabilities/overrides/beta/look_up_member_savings_balance.json) patches only
+locators and checkpoints; validation forbids changes to outcomes, risk, inputs, outputs, or
+actions. It binds the approved base content digest and becomes stale if that base changes. With
+the override, the same artifact succeeds
+([after evidence](evidence/cross-tenant-after/manifest.json)).
 
 ## Result contract and error taxonomy
 
@@ -182,8 +281,8 @@ Use `uv run cua verify <artifact>` for provenance and approval checks. The
 
 URLs are matched by parsed scheme, host, port, and path. Policy derives risk from named rules and
 runs before planner dispatch and surface action. Irreversible replay needs approved content,
-recorded irreversible risk, and an explicit caller flag. AX content is untrusted; policy contains
-a model that follows injected text.
+recorded irreversible risk, and an explicit caller flag. Page text is untrusted input. If the model follows instructions injected into a page, policy
+still refuses any action outside the allowlist.
 
 Persisted sensitive values pass the redaction choke point. Screenshots mask sensitive AX bounds.
 Returning a sensitive capability output to a model provider is egress governed by OutputSpec

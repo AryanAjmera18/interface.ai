@@ -79,3 +79,12 @@ push without force.
   replay handoff exercised the framework-free escalation port and also resumed successfully.
 - Part 4 retained live spend is USD 3.583646. The budget override prohibits further Astra
   discovery runs; no live call was made during this close-out.
+
+
+## Budget-override execution checkpoints
+
+- Step 1 complete: Part 4 closed, gated, scanned, committed, and pushed.
+- Step 2 complete: the required replay success, not-found, recovered, hard-failure, and
+  escalation-replay bundles were already present and tracked. Offline verification reported
+  `intact=true` for all five, so no evidence rerun was needed.
+- Live spend during these checkpoints: USD 0.00.

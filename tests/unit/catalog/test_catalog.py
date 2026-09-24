@@ -118,3 +118,11 @@ async def test_recorded_catalog_responses_normalize_usage(
     assert requests[1]["previous_response_id"] == "resp_select"
     assert call.usage.cost_usd is not None
     assert answer.usage.cost_usd is not None
+
+
+def test_catalog_rejects_duplicate_and_unknown_tool_names() -> None:
+    entry = CapabilityCatalog.load(Path("capabilities")).entries[0]
+    with pytest.raises(ValueError, match="must be unique"):
+        CapabilityCatalog((entry, entry))
+    with pytest.raises(ValueError, match="unknown tool"):
+        CapabilityCatalog((entry,)).by_tool_name("invented_control")

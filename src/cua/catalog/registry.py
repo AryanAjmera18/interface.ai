@@ -73,6 +73,9 @@ class CapabilityCatalog:
     """Expose approved artifacts only; tenant overrides never change the tool contract."""
 
     def __init__(self, entries: tuple[CatalogEntry, ...]) -> None:
+        names = [entry.tool.name for entry in entries]
+        if len(names) != len(set(names)):
+            raise ValueError("Catalog tool names must be unique after normalization")
         self.entries = entries
 
     @classmethod
@@ -103,4 +106,7 @@ class CapabilityCatalog:
         return cls(tuple(entries))
 
     def by_tool_name(self, name: str) -> CatalogEntry:
-        return next(item for item in self.entries if item.tool.name == name)
+        match = next((item for item in self.entries if item.tool.name == name), None)
+        if match is None:
+            raise ValueError(f"Catalog agent selected unknown tool {name!r}")
+        return match

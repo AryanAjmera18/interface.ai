@@ -134,3 +134,20 @@ push without force.
   policy defects exposed by escalation attempts. Cuts includes the explicit HTML-viewer cut.
 - Mermaid CLI was not installed locally, so diagram rendering must be checked on GitHub.
 - No live model call was made; budget-override live spend remains USD 0.0000444.
+
+## Submission requirement map
+
+| Brief section | Code | Evidence |
+|---|---|---|
+| 3.1 target application | src/cua/target_app/ | tests/integration/target_app/ |
+| 3.2 discovery loop | src/cua/discovery/graph.py | evidence/discovery-010/ |
+| 3.3 capability schema | src/cua/domain/capability.py | capabilities/ and docs/schema/ |
+| 3.4 deterministic replay | src/cua/replay/executor.py | evidence/replay-success/ and replay-hard-failure/ |
+| 3.5 human escalation | src/cua/escalation/ | evidence/escalation-discovery/ and escalation-replay/ |
+| 3.6 guardrails | src/cua/policy/ and observability/redaction.py | policy tests and escalation attempts |
+| 3.7 provenance and observability | src/cua/observability/ | journals, manifests, blobs, and spans under evidence/ |
+| 6 deliverables | README.md, REPORT.md, evidence/ | evidence/demo/README.md |
+
+Required root paths README.md, REPORT.md, and evidence/ exist. The evidence tree contains the
+approved example artifact by link, discovery logs, replay logs, business and hard error runs,
+cross-tenant before/after runs, escalation, and the catalog invocation.

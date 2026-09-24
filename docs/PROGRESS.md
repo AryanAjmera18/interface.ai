@@ -10,7 +10,7 @@ push without force.
 | 1. Manifests, demo index, dependency cleanup | done | d3f716a | Historical attempts 001–009 lack published blobs; attempt 010's old journal contains a raw synthetic balance. Both are documented, not rewritten. |
 | 2. Compiler, verification, approval | done | 0c9a9f4 | Original URL/fingerprint omission is preserved as a labeled fixture reconstruction; future observations record both directly. |
 | 3. Deterministic replay | done | db17e64 | Pre-fix failed evidence was withheld after the privacy scan found raw fixture values; the published reruns are redacted and verified. |
-| 4. Escalation and handoff | pending | — | — |
+| 4. Escalation and handoff | done | 2aeeca9 | Attempt 001 remains local because it predates corrected completion metadata; attempts 002–005 document the subsequent code, config, policy-scope, and prompt defects. |
 | 5. Stretch goals | pending | — | Exactly two: cross-tenant reuse and agent-facing catalog. |
 | 6. HTML run report | pending | — | — |
 | 7. README and REPORT.md | pending | — | Mermaid rendering depends on local mermaid-cli availability. |
@@ -63,3 +63,19 @@ push without force.
   a hard server failure, slow load, and invalid input. Every manifest binds the discovery run,
   capability ID, and exact approved content digest.
 - No live model run was made for Part 3; cumulative final-build live spend remains USD 0.00.
+
+
+## Part 4 verification
+
+- Implementation commit: `2aeeca9`.
+- Full gate: 246 fast tests passed, 92% coverage, seven import contracts kept; lint,
+  format, and strict mypy passed.
+- Escalation evidence lane: six non-live integration tests passed, including chain integrity,
+  named actor attribution, AX change summaries, and publication privacy checks.
+- Full-history scanner: five exact allowlisted findings, zero failures and zero tracked-file
+  failures. Checkpoints, browser profiles, lock files, and pre-fix attempt 001 are excluded.
+- The successful discovery run recorded one irreversible policy escalation, same-session CDP
+  transfer, scripted operator action, handback, re-observation, and resumed completion. The
+  replay handoff exercised the framework-free escalation port and also resumed successfully.
+- Part 4 retained live spend is USD 3.583646. The budget override prohibits further Astra
+  discovery runs; no live call was made during this close-out.

@@ -14,7 +14,7 @@ push without force.
 | 5. Stretch goals | done | 898df05 | Cross-tenant override and one-call Luna catalog evidence are complete. |
 | 6. HTML run report | skipped | — | Cut by the budget and speed override; document in REPORT.md. |
 | 7. README and REPORT.md | done | documentation commit | Four requested diagrams are syntax-reviewed but not locally rendered. |
-| 8. Self-review and submission readiness | pending | — | Fresh-clone check and final GitHub Actions verification required. |
+| 8. Self-review and submission readiness | done | final readiness commit | Fresh clone passes; GitHub Actions status is checked after push. |
 
 ## Global constraints and accounting
 
@@ -157,3 +157,17 @@ cross-tenant before/after runs, escalation, and the catalog invocation.
 The first Windows fresh clone failed nine byte-stability checks because Git converted committed
 JSON and golden files to CRLF. Root .gitattributes now pins text checkout to LF while preserving
 binary screenshots. This is a repository portability fix; no golden content was regenerated.
+
+
+## Part 8 verification
+
+- The top-five code review is in docs/self-review.md. One cheap catalog ambiguity defect was fixed;
+  remaining structural risks are explicit in REPORT.md Cuts.
+- The first public Windows clone exposed CRLF conversion in byte-stable goldens. Commit 547430b
+  added .gitattributes without regenerating any golden.
+- A new public clone at 547430b completed locked dependency installation and Chromium setup.
+  Doctor ran with no credentials, all seven import contracts passed, strict mypy passed, and
+  254 fast tests passed at 91.68% coverage.
+- The fresh clone full-history scanner reported six exact allowlisted findings, zero failures, and
+  zero tracked-file failures. Its working tree was clean.
+- Total live spend under the budget override is USD 0.0000444 from one Luna catalog selection.

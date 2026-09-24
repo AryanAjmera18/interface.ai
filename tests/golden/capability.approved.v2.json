@@ -121,7 +121,7 @@
       "actor": "synthetic-reviewer",
       "at": "2026-01-15T00:00:00Z",
       "reason": "Synthetic approval fixture; not deployment authority.",
-      "reviewed_digest": "f6f23d91aa0eca65b2bd7c71a94a8d62dabdb33bc30415d193836b2f17a9920b"
+      "reviewed_digest": "6b23a57d77007eac0a3e7132cae08ad38a98a63dabcac7683d4e6ad5da0e542d"
     },
     "compiler_version": "1.0.0",
     "derived_from_run_id": "00000000000000000000000001",
@@ -278,7 +278,7 @@
           {
             "confidence": 1.0,
             "evidence_ref": {
-              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "content_hash": "deb9b41d525f3ce5f701bdf329999eb49433d91b83cb439eede4cedf3a4192aa",
               "evidence_id": "00000000000000000000000001",
               "media_type": "application/json"
             },
@@ -379,7 +379,7 @@
           {
             "confidence": 1.0,
             "evidence_ref": {
-              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "content_hash": "deb9b41d525f3ce5f701bdf329999eb49433d91b83cb439eede4cedf3a4192aa",
               "evidence_id": "00000000000000000000000001",
               "media_type": "application/json"
             },
@@ -404,7 +404,7 @@
           {
             "confidence": 1.0,
             "evidence_ref": {
-              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "content_hash": "deb9b41d525f3ce5f701bdf329999eb49433d91b83cb439eede4cedf3a4192aa",
               "evidence_id": "00000000000000000000000001",
               "media_type": "application/json"
             },
@@ -428,7 +428,7 @@
           {
             "confidence": 1.0,
             "evidence_ref": {
-              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "content_hash": "deb9b41d525f3ce5f701bdf329999eb49433d91b83cb439eede4cedf3a4192aa",
               "evidence_id": "00000000000000000000000001",
               "media_type": "application/json"
             },
@@ -536,7 +536,7 @@
           {
             "confidence": 1.0,
             "evidence_ref": {
-              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "content_hash": "deb9b41d525f3ce5f701bdf329999eb49433d91b83cb439eede4cedf3a4192aa",
               "evidence_id": "00000000000000000000000001",
               "media_type": "application/json"
             },
@@ -639,7 +639,7 @@
           {
             "confidence": 1.0,
             "evidence_ref": {
-              "content_hash": "8b8111443c1cf9ff3b0cfbb42e9c35617c1ecc5795e6c4ace3f56db24f4ab4e9",
+              "content_hash": "deb9b41d525f3ce5f701bdf329999eb49433d91b83cb439eede4cedf3a4192aa",
               "evidence_id": "00000000000000000000000001",
               "media_type": "application/json"
             },

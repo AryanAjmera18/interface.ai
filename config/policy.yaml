@@ -12,13 +12,13 @@ allowlist:
 risk_rules:
   - rule_id: account.confirm-submit
     action_kinds: [click]
-    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/accounts/open/review"}
+    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/ui/review"}
     target: {role: button, name: Confirm sub-account}
     risk: irreversible
   - rule_id: account.confirm-submit-beta
     action_kinds: [click]
-    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/accounts/open/review"}
-    target: {role: button, name: Confirm deposit product}
+    route: {scheme: http, host: 127.0.0.1, port: 8099, path: "/t/*/ui/extra"}
+    target: {role: button, name: Submit deposit product}
     risk: irreversible
   - rule_id: form.data-entry
     action_kinds: [type_text, select_option]

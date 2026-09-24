@@ -20,7 +20,7 @@ push without force.
 
 - Stop after three consecutive live-model failures.
 - Stop if cumulative live-model spend for this final-build prompt exceeds USD 3.00.
-- Current final-build live spend: USD 0.00; no live run has been made in this prompt.
+- Current final-build live spend: USD 3.583646 across six retained Part 4 discovery attempts. The budget override prohibits further gpt-6-astra runs; only the capped Part 5 Luna catalog call remains allowed.
 - Never rewrite Git history or force-push.
 - Every scripted operator action must be labeled `scripted-operator` in journals and docs.
 - Early attempts 001–009 and their failure evidence remain intentionally preserved.

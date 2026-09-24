@@ -1,6 +1,7 @@
 """Emit provider-neutral schema DATA; forbid filesystem/network I/O and other cua packages."""
 
 import json
+from copy import deepcopy
 from typing import cast
 
 from pydantic import BaseModel, JsonValue, TypeAdapter
@@ -73,13 +74,39 @@ def strict_schema(model: type[BaseModel], name: str) -> SchemaDocument:
     return SchemaDocument(name=name, schema_body=value)
 
 
+def _historical_v1_schema(model: type[BaseModel], name: str) -> SchemaDocument:
+    """Preserve v1 wire definitions after backend-neutral frame URLs were added in v2.
+
+    Version labels are contracts over emitted bytes. Reusing the current nested FrameInfo model
+    would silently mutate observation.v1 and decision-request.v1, so this explicit projection
+    removes the sole post-v1 field before publication.
+    """
+    document = strict_schema(model, name)
+    body = deepcopy(document.schema_body)
+    if not isinstance(body, dict):
+        raise ValueError(f"{name}: schema root must be an object")
+    definitions = body.get("$defs")
+    if not isinstance(definitions, dict):
+        raise ValueError(f"{name}: schema definitions are missing")
+    frame_info = definitions.get("FrameInfo")
+    if not isinstance(frame_info, dict):
+        raise ValueError(f"{name}: historical FrameInfo definition is missing")
+    properties = frame_info.get("properties")
+    required = frame_info.get("required")
+    if not isinstance(properties, dict) or not isinstance(required, list):
+        raise ValueError(f"{name}: historical FrameInfo shape is invalid")
+    properties.pop("url", None)
+    frame_info["required"] = [item for item in required if item != "url"]
+    return SchemaDocument(name=name, schema_body=cast(JsonValue, body))
+
+
 def public_schemas() -> tuple[SchemaDocument, ...]:
     """ReplayResult is deliberately ordinary JSON Schema, not a strict tool-input schema."""
     return (
         strict_schema(Capability, "capability.v2"),
         strict_schema(ActionInput, "action.v2"),
-        strict_schema(Observation, "observation.v1"),
-        strict_schema(DecisionRequest, "decision-request.v1"),
+        _historical_v1_schema(Observation, "observation.v1"),
+        _historical_v1_schema(DecisionRequest, "decision-request.v1"),
         strict_schema(DecisionResult, "decision-result.v2"),
         SchemaDocument(
             name="replay-result.v2",

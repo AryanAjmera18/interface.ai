@@ -3,6 +3,11 @@
 TODO: document the implemented artifact schema, deterministic replay, error taxonomy,
 human control transfer, safety guardrails, field provenance, and tamper-evident evidence.
 
+## Safety findings from control transfer
+
+- Irreversible rules initially named a route the fixture never served. The broad safe-click rule therefore matched. Policy configuration now self-checks the concrete review and beta-extra routes.
+- The frameset kept its outer URL stable while the content frame navigated. Policy now classifies an action with the URL of the frame that owns its target.
+
 ## 6. Known limits
 
 - Attempts 001, 004, 005, 006, 007, 008, and 009 exposed details only to operator inspection:

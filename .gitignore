@@ -39,3 +39,14 @@ ms-playwright/
 !/evidence/replay-*/**
 /evidence/replay-*/browser-profile/
 /evidence/replay-*/*.lock
+
+# Publish same-session escalation evidence, excluding ephemeral browser state and locks.
+!/evidence/escalation-*/
+!/evidence/escalation-*/**
+/evidence/escalation-*/browser-profile/
+/evidence/escalation-*/*.lock
+/evidence/escalation-*/checkpoints.sqlite*
+
+# Attempt 001 stopped early and contains pre-fix raw synthetic identifiers; retain locally only.
+/evidence/escalation-discovery-attempt-001/
+/evidence/escalation-discovery-attempt-002/browser-profile/

@@ -304,6 +304,14 @@ def model_samples() -> list[v.DomainModel]:
         ports.ControlTransferred(observation_hash=HASH, actor="reviewer"),
         ports.HumanAction(observation_hash=HASH, actor="reviewer", action=a.Click()),
         ports.ControlReturned(observation_hash=HASH, actor="reviewer"),
+        ports.HumanChangeSummary(
+            observation_hash=HASH,
+            actor="reviewer",
+            before_hash=HASH,
+            after_hash=HASH,
+            changes=(),
+            notes="confirmed",
+        ),
         ports.CapabilityCompiled(capability_id=cap.capability_id, content_digest=HASH),
         ports.DraftReplayAuthorized(capability_id=cap.capability_id),
         ports.CapabilityApproved(

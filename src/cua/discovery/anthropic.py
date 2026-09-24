@@ -31,6 +31,7 @@ class PlannerOutput(DomainModel):
     intent: str = Field(min_length=1)
     action: Action
     target: AxTarget | None
+    goal_reached: bool = False
     rationale_digest_source: str = Field(
         min_length=1,
         description="Short rationale summary; it is hashed and never persisted verbatim.",
@@ -76,4 +77,5 @@ class AnthropicLLMClient:
             usage=price_usage(normalize_anthropic_usage(metadata), self.pricing),
             latency_ms=int((monotonic() - started) * 1000),
             finish_reason="completed",
+            goal_reached=parsed.goal_reached,
         )

@@ -10,7 +10,7 @@ from cua.domain.observation import AxNode, Observation
 from cua.observability.redaction import json_value, redact, redact_ax_for_prompt
 from cua.policy.models import Budget
 
-TEMPLATE_ID = "discovery-planner.v1"
+TEMPLATE_ID = "discovery-planner.v3"
 
 
 def _node(node: AxNode) -> str:

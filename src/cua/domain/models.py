@@ -88,6 +88,7 @@ class DecisionResult(DomainModel):
     usage: Usage
     latency_ms: int = Field(ge=0)
     finish_reason: Literal["completed", "length", "refusal", "error"]
+    goal_reached: bool = False
 
     @model_validator(mode="after")
     def action_requires_completion(self) -> Self:

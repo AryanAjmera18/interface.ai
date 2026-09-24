@@ -112,7 +112,7 @@ async def capture_frames(context: BrowserContext, page: Page, cdp: CDPSession) -
         capture.bindings.update({(path, b.node_path): b for b in normalized.bindings})
         capture.snapshots.append(
             FrameSnapshot(
-                info=FrameInfo(frame_path=path, title=await frame.title()),
+                info=FrameInfo(frame_path=path, title=await frame.title(), url=frame.url),
                 root=normalized.root,
                 owner_path=owner_path,
             )

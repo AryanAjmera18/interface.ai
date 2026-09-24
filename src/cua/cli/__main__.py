@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from langchain_core.runnables import RunnableConfig
 from pydantic import JsonValue
 
 from cua.discovery.anthropic import AnthropicLLMClient
@@ -23,7 +24,7 @@ from cua.domain.provenance import ModelRef
 from cua.domain.schemas import public_schemas
 from cua.observability.context import new_run, run_scope
 from cua.observability.evidence import EvidenceStore, SurfaceEvidenceSink
-from cua.observability.journal import RunJournal
+from cua.observability.journal import JournalAdapter, RunJournal
 from cua.observability.manifest import ModelEntry, PricingEvidence, write_manifest
 from cua.observability.redaction import (
     FieldRule,
@@ -154,12 +155,21 @@ def discover(
     target: Annotated[str, typer.Option()],
     tenant: Annotated[str, typer.Option()] = "alpha",
     param: Annotated[list[str] | None, typer.Option()] = None,
+    scripted_operator: Annotated[bool, typer.Option()] = False,
+    output: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """Run offline discovery by default; provider adapters may replace the fake client."""
-    asyncio.run(_discover(goal, target, tenant, param or []))
+    asyncio.run(_discover(goal, target, tenant, param or [], scripted_operator, output))
 
 
-async def _discover(goal: str, target: str, tenant: str, params: list[str]) -> None:
+async def _discover(
+    goal: str,
+    target: str,
+    tenant: str,
+    params: list[str],
+    scripted_operator: bool = False,
+    output: Path | None = None,
+) -> None:
     import importlib
 
     parser = importlib.import_module("yaml")
@@ -168,12 +178,12 @@ async def _discover(goal: str, target: str, tenant: str, params: list[str]) -> N
     )
     clock, ids = SystemClock(), UlidGenerator()
     context = new_run("discovery", clock=clock, ids=ids, tenant_id=tenant)
-    root = Path(os.environ.get("CUA_EVIDENCE_DIR", "evidence")) / context.run_id
+    root = output or Path(os.environ.get("CUA_EVIDENCE_DIR", "evidence")) / context.run_id
     root.parent.mkdir(parents=True, exist_ok=True)
     with run_scope(context):
-        evidence = EvidenceStore(root.parent, context.run_id, clock=clock, ids=ids)
-        journal = RunJournal(root.parent, context.run_id, clock=clock)
-        tracing = Tracing(root.parent, clock=clock, ids=ids)
+        evidence = EvidenceStore(root.parent, context.run_id, clock=clock, ids=ids, directory=root)
+        journal = RunJournal(root.parent, context.run_id, clock=clock, directory=root)
+        tracing = Tracing(root.parent, clock=clock, ids=ids, directory=root)
         surface = await PlaywrightWebSurface.launch(
             WebConfig(
                 user_data_dir=str(root / "browser-profile"), base_url=target, tenant_id=tenant
@@ -212,22 +222,82 @@ async def _discover(goal: str, target: str, tenant: str, params: list[str]) -> N
                 llm = FakeLLMClient(())
             else:
                 raise ValueError(f"No discovery adapter configured for {profile.model.provider}")
+            discovery_journal = JournalAdapter(
+                journal,
+                RedactionPolicy(
+                    fields=(
+                        FieldRule(path="/decision/intent", sensitivity="pii"),
+                        FieldRule(path="/decision/target/name_matcher/value", sensitivity="pii"),
+                        FieldRule(path="/decision/target/within", sensitivity="pii"),
+                        FieldRule(path="/decision/action/value_ref/value/value", sensitivity="pii"),
+                        FieldRule(path="/intent", sensitivity="pii"),
+                        FieldRule(path="/target/name_matcher/value", sensitivity="pii"),
+                        FieldRule(path="/target/within", sensitivity="pii"),
+                        FieldRule(
+                            path="/locator_ladder/candidates/*/value/name_matcher/value",
+                            sensitivity="pii",
+                        ),
+                        FieldRule(
+                            path="/locator_ladder/candidates/*/value/ancestor",
+                            sensitivity="pii",
+                        ),
+                        FieldRule(path="/action/value_ref/value/value", sensitivity="pii"),
+                    )
+                ),
+            )
             agent = DiscoveryAgent(
                 surface=surface,
                 llm=llm,
                 policy=PolicyEngine(policy),
-                journal=journal,
+                journal=discovery_journal,
                 evidence=evidence,
                 ids=ids,
                 renderer=default_renderer(),
+                enable_handoff_interrupt=scripted_operator,
             )
             failure: Exception | None = None
             terminal_status = "complete"
             try:
                 with tracing.span("run"):
-                    graph_result = await build_graph(agent).ainvoke(
-                        DiscoveryState(goal=goal, inputs=bindings, run_id=context.run_id)
-                    )
+                    if scripted_operator:
+                        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+                        from langgraph.types import Command
+
+                        async with AsyncSqliteSaver.from_conn_string(
+                            str(root / "checkpoints.sqlite")
+                        ) as saver:
+                            graph = build_graph(agent, saver)
+                            settings: RunnableConfig = {
+                                "configurable": {"thread_id": context.run_id}
+                            }
+                            graph_result = await graph.ainvoke(
+                                DiscoveryState(goal=goal, inputs=bindings, run_id=context.run_id),
+                                settings,
+                            )
+                            if graph_result.get("__interrupt__"):
+                                await _scripted_discovery_handoff(
+                                    agent=agent,
+                                    state=DiscoveryState.model_validate(
+                                        {
+                                            key: value
+                                            for key, value in graph_result.items()
+                                            if key != "__interrupt__"
+                                        }
+                                    ),
+                                    journal=discovery_journal,
+                                    clock=clock,
+                                    ids=ids,
+                                    goal=goal,
+                                    bindings=bindings,
+                                    trace_id=context.trace_id,
+                                )
+                                graph_result = await graph.ainvoke(
+                                    Command(resume={"actor": "scripted-operator"}), settings
+                                )
+                    else:
+                        graph_result = await build_graph(agent).ainvoke(
+                            DiscoveryState(goal=goal, inputs=bindings, run_id=context.run_id)
+                        )
                     terminal_status = DiscoveryState.model_validate(graph_result).status
             except Exception as exc:
                 failure = exc
@@ -307,6 +377,90 @@ async def _discover(goal: str, target: str, tenant: str, params: list[str]) -> N
             journal.close()
     typer.echo(f"run_id={context.run_id}")
     typer.echo(f"manifest={root / 'manifest.json'}")
+
+
+async def _scripted_discovery_handoff(
+    *,
+    agent: DiscoveryAgent,
+    state: DiscoveryState,
+    journal: JournalAdapter,
+    clock: SystemClock,
+    ids: UlidGenerator,
+    goal: str,
+    bindings: tuple[InputBinding, ...],
+    trace_id: str,
+) -> None:
+    """Exercise the reviewed operator boundary against synthetic, session-local bank data.
+
+    Ordinary Playwright uses the surface's CDP endpoint after policy escalates and LangGraph
+    interrupts. The named operator's click is journaled before the exact session is handed back.
+    """
+    from cua.domain.actions import Click
+    from cua.escalation.coordinator import HandoffCoordinator, InMemoryInterventionStore
+    from cua.escalation.lease import LeaseManager
+    from cua.escalation.models import InterventionInput, InterventionRequest
+    from cua.surface.operator import confirm_sub_account
+
+    observation = state.last_observation
+    if observation is None:
+        raise RuntimeError("Discovery handoff requires the triggering observation")
+    if (
+        state.pending_policy is None
+        or state.pending_policy.verdict != "escalate"
+        or state.pending_policy.risk != "irreversible"
+    ):
+        raise RuntimeError(
+            "Scripted confirmation is allowed only for an irreversible policy escalation"
+        )
+    leases = LeaseManager(clock, ids)
+    lease = leases.create("irreversible confirmation")
+    request = InterventionRequest(
+        request_id=ids.new(),
+        capability_or_goal=goal,
+        step_id=state.pending_decision.decision_id if state.pending_decision else None,
+        step_intent=state.pending_decision.intent if state.pending_decision else None,
+        reason="irreversible_confirmation",
+        detail="Policy requires named operator confirmation before irreversible submission",
+        inputs=tuple(
+            InterventionInput(
+                name=item.name,
+                value=json_value(redact(item.value, sensitivity=item.sensitivity)),
+            )
+            for item in bindings
+        ),
+        screenshot_ref=observation.screenshot_ref,
+        ax_ref=agent.latest_evidence,
+        trace_id=trace_id,
+        resume_token=lease.resume_token,
+        lease=lease,
+    )
+    coordinator = HandoffCoordinator(
+        surface=agent.surface,
+        journal=journal,
+        leases=leases,
+        store=InMemoryInterventionStore(),
+    )
+    await coordinator.open(request, observation)
+    owned = await coordinator.take_control(request.request_id, "scripted-operator")
+    if owned.status == "aborted" or owned.cdp_endpoint is None:
+        raise RuntimeError("Discovery session lease expired before operator control")
+    failure: Exception | None = None
+    try:
+        await confirm_sub_account(owned.cdp_endpoint)
+        await coordinator.record_action(request.request_id, Click())
+    except Exception as error:
+        failure = error
+    finally:
+        await coordinator.hand_back(
+            request.request_id,
+            (
+                "confirmed reviewed synthetic values"
+                if failure is None
+                else "operator action failed; returned session without confirmation"
+            ),
+        )
+    if failure is not None:
+        raise failure
 
 
 def _run_directory(run_id: str, root: Path = Path("evidence")) -> Path:
@@ -446,6 +600,7 @@ def replay_capability(
     allow_irreversible: Annotated[bool, typer.Option()] = False,
     fault: Annotated[str | None, typer.Option()] = None,
     fault_delay_ms: Annotated[int, typer.Option()] = 0,
+    escalate_on_failure: Annotated[bool, typer.Option()] = False,
     output: Annotated[Path, typer.Option()] = Path("evidence/replay-success"),
 ) -> None:
     """Replay a capability through its recorded data with no model in the decision loop."""
@@ -458,6 +613,7 @@ def replay_capability(
             allow_irreversible,
             fault,
             fault_delay_ms,
+            escalate_on_failure,
             output,
         )
     )
@@ -471,16 +627,23 @@ async def _replay_capability(
     allow_irreversible: bool,
     fault: str | None,
     fault_delay_ms: int,
+    escalate_on_failure: bool,
     output: Path,
 ) -> None:
     import importlib
 
     from cua.domain.capability import Capability, capability_content_digest
     from cua.domain.common import StringValue
-    from cua.domain.ports import RunStarted
+    from cua.domain.ports import EscalationRaised, RunStarted
+    from cua.domain.results import ReplayResult
     from cua.observability.journal import JournalAdapter
     from cua.observability.manifest import OutputEntry
-    from cua.replay.executor import ReplayExecutor, ReplayInput, ReplayOptions
+    from cua.replay.executor import (
+        ReplayExecutor,
+        ReplayInput,
+        ReplayOptions,
+        handoff_checkpoint_satisfied,
+    )
 
     capability = Capability.model_validate_json(artifact.read_bytes())
     parser = importlib.import_module("yaml")
@@ -525,29 +688,29 @@ async def _replay_capability(
         )
         if fault is not None:
             await surface.configure_test_fault(fault, delay_ms=fault_delay_ms)
-        result = None
+        result: ReplayResult | None = None
         try:
             journal.record(
                 RunStarted(kind="replay", parent_run_id=capability.provenance.derived_from_run_id)
             )
-            result = await ReplayExecutor(
+            journal_adapter = JournalAdapter(
+                journal,
+                RedactionPolicy(
+                    fields=(
+                        FieldRule(path="/result/value", sensitivity="pii"),
+                        FieldRule(path="/result/attempted/value_ref/value", sensitivity="pii"),
+                        FieldRule(path="/action/value_ref/value", sensitivity="pii"),
+                    )
+                ),
+            )
+            executor = ReplayExecutor(
                 surface=surface,
                 policy=PolicyEngine(policy),
                 evidence=SurfaceEvidenceSink(evidence),
-                journal=JournalAdapter(
-                    journal,
-                    RedactionPolicy(
-                        fields=(
-                            FieldRule(path="/result/value", sensitivity="pii"),
-                            FieldRule(
-                                path="/result/attempted/value_ref/value",
-                                sensitivity="pii",
-                            ),
-                        )
-                    ),
-                ),
+                journal=journal_adapter,
                 clock=clock,
-            ).execute(
+            )
+            result = await executor.execute(
                 capability,
                 inputs,
                 ReplayOptions(
@@ -556,6 +719,81 @@ async def _replay_capability(
                     trace_id=context.trace_id,
                 ),
             )
+            if escalate_on_failure and result.kind == "hard_failure":
+                observation = await surface.observe()
+                from cua.domain.common import canonical_json
+                from cua.domain.ports import EvidencePayload
+                from cua.escalation.coordinator import HandoffCoordinator, InMemoryInterventionStore
+                from cua.escalation.lease import LeaseManager
+                from cua.escalation.models import InterventionInput, InterventionRequest
+                from cua.observability.redaction import redacted_ax_payload
+
+                ax_ref = await SurfaceEvidenceSink(evidence).put(
+                    EvidencePayload(
+                        media_type="application/json",
+                        content=canonical_json(
+                            redacted_ax_payload(observation.ax_root, observation.hash)
+                        ).encode(),
+                        observation_hash=observation.hash,
+                        observation_id=observation.observation_id,
+                        ax_root=observation.ax_root,
+                    )
+                )
+                leases = LeaseManager(clock, ids)
+                lease = leases.create("replay hard failure")
+                request = InterventionRequest(
+                    request_id=ids.new(),
+                    capability_or_goal=capability.capability_id,
+                    step_id=result.step_id,
+                    step_intent=result.step_intent,
+                    reason="replay_hard_failure",
+                    detail=result.observed,
+                    inputs=tuple(
+                        InterventionInput(
+                            name=item.name,
+                            value=json_value(redact(item.value.value, sensitivity="pii")),
+                        )
+                        for item in inputs
+                    ),
+                    screenshot_ref=observation.screenshot_ref,
+                    ax_ref=ax_ref,
+                    trace_id=context.trace_id,
+                    resume_token=lease.resume_token,
+                    lease=lease,
+                )
+                await journal_adapter.append(
+                    EscalationRaised(
+                        observation_hash=observation.hash,
+                        escalation_id=request.request_id,
+                        reason="replay_hard_failure: scripted operator requested",
+                    )
+                )
+                coordinator = HandoffCoordinator(
+                    surface=surface,
+                    journal=journal_adapter,
+                    leases=leases,
+                    store=InMemoryInterventionStore(),
+                )
+                await coordinator.open(request, observation)
+                owned = await coordinator.take_control(request.request_id, "scripted-operator")
+                await _scripted_operator_restore_search(
+                    owned.cdp_endpoint or "", coordinator, request.request_id
+                )
+                await coordinator.hand_back(request.request_id, "restored expected search result")
+                resumed_observation = await surface.observe()
+                if handoff_checkpoint_satisfied(
+                    capability, result.step_id, resumed_observation, inputs
+                ):
+                    result = await executor.execute(
+                        capability,
+                        inputs,
+                        ReplayOptions(
+                            allow_draft=allow_draft,
+                            allow_irreversible=allow_irreversible,
+                            trace_id=context.trace_id,
+                            resume_after_step_id=result.step_id,
+                        ),
+                    )
             terminal = (
                 "success"
                 if result.kind == "success"
@@ -619,6 +857,22 @@ async def _replay_capability(
             evidence.close()
     typer.echo(f"{result.kind}: {output / 'manifest.json'}")
     typer.echo(f"capability_digest={capability_content_digest(capability)}")
+
+
+async def _scripted_operator_restore_search(
+    endpoint: str,
+    coordinator: object,
+    request_id: str,
+) -> None:
+    """Script the evidence operator through the surface-owned CDP adapter."""
+    from cua.domain.actions import Click
+    from cua.escalation.coordinator import HandoffCoordinator
+    from cua.surface.operator import restore_member_search
+
+    if not isinstance(coordinator, HandoffCoordinator):
+        raise TypeError("scripted operator requires a handoff coordinator")
+    await restore_member_search(endpoint)
+    await coordinator.record_action(request_id, Click())
 
 
 if __name__ == "__main__":

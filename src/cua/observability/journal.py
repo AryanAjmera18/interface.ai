@@ -202,6 +202,10 @@ class JournalAdapter:
         self.journal = journal
         self.policy = policy or RedactionPolicy()
 
-    async def append(self, entry: JournalEvent) -> str:
+    def record(self, entry: JournalEvent) -> JournalRecord:
+        """Offer the synchronous recorder used by discovery through the same policy choke point."""
         with redaction_policy(self.policy):
-            return self.journal.record(entry).hash
+            return self.journal.record(entry)
+
+    async def append(self, entry: JournalEvent) -> str:
+        return self.record(entry).hash

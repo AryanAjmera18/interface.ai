@@ -280,6 +280,17 @@ class ControlReturned(PageEvent):
     actor: str = Field(min_length=1)
 
 
+class HumanChangeSummary(PageEvent):
+    """Record a metadata-only AX diff after automation regains the live session."""
+
+    type: Literal["HumanChangeSummary"] = "HumanChangeSummary"
+    actor: str = Field(min_length=1)
+    before_hash: Digest
+    after_hash: Digest
+    changes: tuple[TreeChange, ...]
+    notes: str = ""
+
+
 class DraftReplayAuthorized(DomainModel):
     """Make the caller's explicit bypass of approval visible in replay history."""
 
@@ -384,6 +395,7 @@ JournalEvent = Annotated[
     | ControlTransferred
     | HumanAction
     | ControlReturned
+    | HumanChangeSummary
     | CapabilityCompiled
     | CapabilityApproved
     | DraftReplayAuthorized

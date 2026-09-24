@@ -12,6 +12,7 @@ from typing import Any, Literal, cast
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import interrupt
 
 from cua.discovery.candidates import locator_ladder, target_semantics
 from cua.discovery.prompts import TEMPLATE_ID, PromptRenderer
@@ -39,7 +40,7 @@ from cua.domain.ports import (
 from cua.domain.predicates import PredicateResult
 from cua.domain.steps import StepTiming
 from cua.observability.evidence import EvidenceStore
-from cua.observability.journal import RunJournal
+from cua.observability.journal import JournalAdapter, RunJournal
 from cua.observability.redaction import (
     FieldRule,
     RedactionPolicy,
@@ -58,16 +59,23 @@ class DiscoveryAgent:
         surface: Surface,
         llm: LLMClient,
         policy: PolicyEngine,
-        journal: RunJournal,
+        journal: RunJournal | JournalAdapter,
         evidence: EvidenceStore,
         ids: IdGenerator,
         renderer: PromptRenderer,
         dead_end_limit: int = 3,
+        enable_handoff_interrupt: bool = False,
     ) -> None:
         self.surface, self.llm, self.policy = surface, llm, policy
         self.journal, self.evidence, self.ids = journal, evidence, ids
         self.renderer, self.dead_end_limit = renderer, dead_end_limit
+        self.enable_handoff_interrupt = enable_handoff_interrupt
         self._last_evidence: EvidenceRef | None = None
+
+    @property
+    def latest_evidence(self) -> EvidenceRef | None:
+        """Expose the latest redacted AX reference for a typed intervention request."""
+        return self._last_evidence
 
     def _record_observation(self, observation: Observation) -> None:
         stored = self.evidence.put(
@@ -103,7 +111,22 @@ class DiscoveryAgent:
         observation = state.last_observation
         if observation is None:
             return self._terminal_update("surface_error", "No observation available")
-        prompt = self.renderer.render(state.goal, state.inputs, observation, state.budget)
+        previous = (
+            "none"
+            if not state.history
+            else (
+                f"{state.history[-1].action.kind} completed; "
+                "observation_changed="
+                f"{state.history[-1].after_hash != state.history[-1].observation_hash}"
+            )
+        )
+        prompt = self.renderer.render(
+            state.goal,
+            state.inputs,
+            observation,
+            state.budget,
+            previous_result=previous,
+        )
         request = DecisionRequest(
             decision_id=self.ids.new(),
             role=ModelRole.DISCOVERY_PLANNER,
@@ -146,11 +169,22 @@ class DiscoveryAgent:
             "pending_ladder": ladder,
         }
 
+    @staticmethod
+    def _policy_url(observation: Observation, target: Any) -> str:
+        """Authorize the frame that owns the target, not the stable outer frameset URL."""
+        if target is not None:
+            for frame in observation.frames:
+                if frame.frame_path == target.frame_path and frame.url:
+                    return frame.url
+        return observation.url or "about:blank"
+
     async def check_policy(self, state: DiscoveryState) -> dict[str, Any]:
         if state.pending_action is None or state.last_observation is None:
             return self._terminal_update("surface_error", "Planner produced no executable action")
         context = PolicyContext(
-            phase="discovery", url=state.last_observation.url or "about:blank", budget=state.budget
+            phase="discovery",
+            url=self._policy_url(state.last_observation, state.pending_target),
+            budget=state.budget,
         )
         decision = self.policy.evaluate(state.pending_action, state.pending_target, context)
         self.journal.record(
@@ -181,7 +215,9 @@ class DiscoveryAgent:
             state.pending_action,
             state.pending_target,
             PolicyContext(
-                phase="discovery", url=observation.url or "about:blank", budget=state.budget
+                phase="discovery",
+                url=self._policy_url(observation, state.pending_target),
+                budget=state.budget,
             ),
         )
         if execution.verdict != "allow":
@@ -284,11 +320,15 @@ class DiscoveryAgent:
             "repeated_action_count": repeated,
         }
         if isinstance(state.pending_action, ReadValue):
-            updates.update(
-                status="goal_reached",
-                outputs=(OutputBinding(name=state.pending_action.output_name, value="captured"),),
+            updates["outputs"] = (
+                *state.outputs,
+                OutputBinding(name=state.pending_action.output_name, value="captured"),
             )
-        elif no_change >= self.dead_end_limit or repeated >= 3:
+            if decision.goal_reached:
+                updates["status"] = "goal_reached"
+        if updates.get("status") != "goal_reached" and (
+            no_change >= self.dead_end_limit or repeated >= 3
+        ):
             updates.update(self._terminal_update("dead_end", "Repeated action made no progress"))
         return updates
 
@@ -310,6 +350,29 @@ class DiscoveryAgent:
         )
         self.journal.record(RunEnded(result=result, summary=state.status))
         return {}
+
+    async def raise_escalation(self, state: DiscoveryState) -> dict[str, Any]:
+        """Journal the stop before entering LangGraph's resumable interrupt node."""
+        observation_hash = state.last_observation.hash if state.last_observation else "0" * 64
+        request = state.escalation or EscalationRequest(
+            reason=state.status, terminal_edge=cast(Any, state.status)
+        )
+        self.journal.record(
+            EscalationRaised(
+                observation_hash=observation_hash,
+                escalation_id=self.ids.new(),
+                reason=f"{request.terminal_edge}: {request.reason}",
+            )
+        )
+        return {}
+
+    async def interrupt_handoff(self, state: DiscoveryState) -> dict[str, Any]:
+        """Persist graph state while SessionLease separately protects the live browser."""
+        request = state.escalation or EscalationRequest(
+            reason=state.status, terminal_edge=cast(Any, state.status)
+        )
+        interrupt(request.model_dump(mode="json"))
+        return {"status": "running", "escalation": None}
 
     def _terminal_update(self, edge: str, reason: str) -> dict[str, Any]:
         return {
@@ -344,30 +407,75 @@ def build_graph(
     for name in terminal_names:
         graph.add_node(name, agent.terminal)
         graph.add_edge(name, END)
+    if agent.enable_handoff_interrupt:
+        graph.add_node("raise_escalation", agent.raise_escalation)
+        graph.add_node("interrupt_handoff", agent.interrupt_handoff)
+        graph.add_edge("raise_escalation", "interrupt_handoff")
+        graph.add_edge("interrupt_handoff", "observe")
     graph.add_edge(START, "observe")
     graph.add_edge("observe", "decide")
     graph.add_conditional_edges(
         "decide",
         lambda state: state.status,
-        {"running": "check_policy", **{name: name for name in terminal_names}},
+        {
+            "running": "check_policy",
+            **{
+                name: (
+                    "raise_escalation"
+                    if agent.enable_handoff_interrupt and name != "goal_reached"
+                    else name
+                )
+                for name in terminal_names
+            },
+        },
     )
     graph.add_conditional_edges(
         "check_policy",
         lambda state: state.status,
-        {"running": "act", **{name: name for name in terminal_names}},
+        {
+            "running": "act",
+            **{
+                name: (
+                    "raise_escalation"
+                    if agent.enable_handoff_interrupt and name != "goal_reached"
+                    else name
+                )
+                for name in terminal_names
+            },
+        },
     )
     graph.add_conditional_edges(
         "act",
         lambda state: state.status,
-        {"running": "verify", **{name: name for name in terminal_names}},
+        {
+            "running": "verify",
+            **{
+                name: (
+                    "raise_escalation"
+                    if agent.enable_handoff_interrupt and name != "goal_reached"
+                    else name
+                )
+                for name in terminal_names
+            },
+        },
     )
     graph.add_conditional_edges(
         "verify",
         lambda state: state.status,
-        {"running": "decide", **{name: name for name in terminal_names}},
+        {
+            "running": "decide",
+            **{
+                name: (
+                    "raise_escalation"
+                    if agent.enable_handoff_interrupt and name != "goal_reached"
+                    else name
+                )
+                for name in terminal_names
+            },
+        },
     )
     return graph.compile(checkpointer=checkpointer, interrupt_after=interrupt_after)
 
 
 def default_renderer(root: Path = Path("config/prompts")) -> PromptRenderer:
-    return PromptRenderer.from_file(root / "discovery-planner.v1.txt")
+    return PromptRenderer.from_file(root / "discovery-planner.v3.txt")

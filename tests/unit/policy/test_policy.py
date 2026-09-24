@@ -142,8 +142,51 @@ def test_risk_is_derived_and_model_suggestion_is_non_authoritative(
     assert decision.model_suggested_risk == "irreversible"
 
 
+def test_irreversible_policy_routes_match_target_app_surface() -> None:
+    root = Path(__file__).resolve().parents[3]
+    app_source = (root / "src/cua/target_app/app.py").read_text(encoding="utf-8")
+    workflow_source = (root / "src/cua/target_app/workflow.py").read_text(encoding="utf-8")
+    assert 'action == "review"' in app_source
+    assert "tenant.extra_confirmation" in workflow_source
+    assert 'action == "confirm"' in workflow_source
+    configured = (root / "config/policy.yaml").read_text(encoding="utf-8")
+    assert 'path: "/t/*/ui/review"' in configured
+    assert 'path: "/t/*/ui/extra"' in configured
+    assert "/accounts/open/review" not in configured
+
+
+@pytest.mark.parametrize(
+    ("url", "name", "rule_id"),
+    [
+        (
+            "http://127.0.0.1:8099/t/alpha/ui/review",
+            "Confirm sub-account",
+            "account.confirm-submit",
+        ),
+        (
+            "http://127.0.0.1:8099/t/beta/ui/extra",
+            "Submit deposit product",
+            "account.confirm-submit-beta",
+        ),
+    ],
+)
+def test_real_fixture_confirmation_routes_escalate(
+    engine: PolicyEngine, url: str, name: str, rule_id: str
+) -> None:
+    decision = engine.evaluate(
+        Click(),
+        TargetSemantics(role="button", name=name, frame_path=("Content", "Member workspace")),
+        context(url=url),
+    )
+    assert (decision.verdict, decision.risk, decision.rule_id) == (
+        "escalate",
+        "irreversible",
+        rule_id,
+    )
+
+
 def test_discovery_irreversible_escalates(engine: PolicyEngine) -> None:
-    review = "http://127.0.0.1:8099/t/alpha/accounts/open/review"
+    review = "http://127.0.0.1:8099/t/alpha/ui/review"
     decision = engine.evaluate(Click(), target("Confirm sub-account"), context(url=review))
     assert decision.verdict == "escalate"
     assert decision.risk == "irreversible"
@@ -156,7 +199,7 @@ def test_discovery_irreversible_escalates(engine: PolicyEngine) -> None:
 def test_replay_irreversible_requires_all_three_gates(
     engine: PolicyEngine, status: str, recorded: str, caller: bool
 ) -> None:
-    review = "http://127.0.0.1:8099/t/alpha/accounts/open/review"
+    review = "http://127.0.0.1:8099/t/alpha/ui/review"
     decision = engine.evaluate(
         Click(),
         target("Confirm sub-account"),

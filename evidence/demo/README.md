@@ -11,7 +11,7 @@ marked **done** only when its linked bundle exists and its journal verifies.
 | 4. Replay business outcome: member not found | Done | [manifest](../replay-not-found/manifest.json), [journal](../replay-not-found/journal.ndjson) |
 | 5. Replay recovery: dismiss interstitial | Done | [manifest](../replay-recovered/manifest.json), [journal](../replay-recovered/journal.ndjson) |
 | 6. Replay hard failure with debug payload | Done | [manifest](../replay-hard-failure/manifest.json), [journal](../replay-hard-failure/journal.ndjson) |
-| 7. Same-session human escalation | Pending | Part 4 |
+| 7. Same-session human escalation | Done | [discovery handoff](../escalation-discovery/manifest.json), [replay handoff](../escalation-replay/manifest.json), [attempt ledger](../../docs/escalation-attempts.md) |
 | 8. Cross-tenant replay with override | Pending | Part 5 |
 | 9. Catalog agent discovers and invokes capability | Pending | Part 5 |
 

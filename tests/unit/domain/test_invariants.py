@@ -13,9 +13,10 @@ from cua.domain import capability as c
 from cua.domain import common as v
 from cua.domain import models
 from cua.domain import steps as s
+from cua.domain.observation import observation_json
 from cua.domain.predicates import AxTarget
 from cua.domain.schemas import strict_schema
-from tests.unit.domain.samples import capability, ladder
+from tests.unit.domain.samples import capability, ladder, observation
 
 
 @pytest.mark.parametrize(
@@ -179,9 +180,10 @@ def test_parameter_validation_matrix(rule: Any, json_type: str, example: Any) ->
         c.ParamSpec.model_validate(data)
 
 
-def test_evidence_reference_matches_committed_fixture() -> None:
+def test_evidence_reference_matches_committed_fixture(golden_file: Any) -> None:
     root = Path(__file__).resolve().parents[3]
-    content = (root / "tests/golden/ax-alpha.json").read_bytes()
+    path = root / "tests/golden/ax-alpha.json"
+    content = golden_file(path, (observation_json(observation()) + "\n").encode())
     assert (
         capability().steps[0].target.candidates[0].evidence_ref.content_hash
         == hashlib.sha256(content).hexdigest()

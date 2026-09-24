@@ -168,4 +168,5 @@ class OpenAILLMClient:
             usage=usage,
             latency_ms=int((monotonic() - started) * 1000),
             finish_reason="completed",
+            goal_reached=parsed.goal_reached,
         )

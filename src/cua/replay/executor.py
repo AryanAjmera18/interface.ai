@@ -53,6 +53,7 @@ class ReplayOptions(DomainModel):
     allow_draft: bool = False
     allow_irreversible: bool = False
     trace_id: str
+    resume_after_step_id: str | None = None
 
 
 def validate_inputs(capability: Capability, inputs: tuple[ReplayInput, ...]) -> str | None:
@@ -209,7 +210,17 @@ class ReplayExecutor:
                 )
             )
         parameters = tuple(Binding(name=item.name, value=item.value) for item in inputs)
-        for index, step in enumerate(capability.steps):
+        start = 0
+        if options.resume_after_step_id is not None:
+            start = next(
+                (
+                    index + 1
+                    for index, item in enumerate(capability.steps)
+                    if item.step_id == options.resume_after_step_id
+                ),
+                len(capability.steps),
+            )
+        for index, step in enumerate(capability.steps[start:], start=start):
             before_context = EvaluationContext(parameters=parameters)
             failed_precondition = next(
                 (
@@ -521,7 +532,7 @@ class ReplayExecutor:
         return Success(
             outputs=outputs,
             evidence_ref=await self._evidence(observation),
-            steps_executed=len(capability.steps),
+            steps_executed=len(capability.steps) - start,
             duration_ms=max(0, int(elapsed.total_seconds() * 1000)),
         )
 
@@ -536,3 +547,19 @@ class ReplayExecutor:
             name=matcher.value if matcher is not None else None,
             frame_path=candidate.frame_path,
         )
+
+
+def handoff_checkpoint_satisfied(
+    capability: Capability,
+    failed_step_id: str,
+    observation: Observation,
+    inputs: tuple[ReplayInput, ...],
+) -> bool:
+    """Re-check recorded state after handback; never resume from the operator's assertion alone."""
+    step = next((item for item in capability.steps if item.step_id == failed_step_id), None)
+    if step is None or step.checkpoint is None:
+        return False
+    context = EvaluationContext(
+        parameters=tuple(Binding(name=item.name, value=item.value) for item in inputs)
+    )
+    return evaluate(step.checkpoint, observation, context).satisfied

@@ -38,6 +38,7 @@ class FrameInfo(DomainModel):
 
     frame_path: tuple[str, ...]
     title: str
+    url: str | None = None
 
 
 class SurfaceFingerprint(DomainModel):

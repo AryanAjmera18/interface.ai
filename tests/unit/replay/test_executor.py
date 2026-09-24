@@ -18,7 +18,12 @@ from cua.domain.ports import (
 )
 from cua.policy.engine import PolicyEngine
 from cua.policy.models import PolicyConfig
-from cua.replay.executor import ReplayExecutor, ReplayInput, ReplayOptions
+from cua.replay.executor import (
+    ReplayExecutor,
+    ReplayInput,
+    ReplayOptions,
+    handoff_checkpoint_satisfied,
+)
 from tests.unit.domain.samples import FixedClock, capability, observation
 
 
@@ -220,3 +225,11 @@ async def test_draft_requires_explicit_caller_authorization() -> None:
     assert result.failure_kind == "invalid_input"
     assert "allow_draft" in result.observed
     assert surface.actions == 0
+
+
+def test_handoff_resume_requires_the_recorded_checkpoint() -> None:
+    cap = capability()
+    inputs = (ReplayInput(name="member_id", value=StringValue(value="10023")),)
+    failed = cap.steps[0]
+    assert not handoff_checkpoint_satisfied(cap, failed.step_id, observation(), inputs)
+    assert not handoff_checkpoint_satisfied(cap, "missing-step", observation(), inputs)
